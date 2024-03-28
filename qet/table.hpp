@@ -11,16 +11,16 @@
 #include "common.hpp"
 #include "value.hpp"
 
-struct Entry {
+typedef struct {
     ObjString* key;
     Value value;
-};
+} Entry;
 
-struct Table {
+typedef struct {
     int count;
     int capacity;
     Entry* entries;
-};
+} Table;
 
 void initTable(Table* table);
 void freeTable(Table* table);

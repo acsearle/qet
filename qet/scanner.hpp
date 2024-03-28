@@ -8,7 +8,7 @@
 #ifndef scanner_hpp
 #define scanner_hpp
 
-enum TokenType {
+typedef enum {
     // Single-character tokens.
     TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,
     TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE,
@@ -28,14 +28,14 @@ enum TokenType {
     TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
     
     TOKEN_ERROR, TOKEN_EOF,
-};
+} TokenType;
 
-struct Token {
+typedef struct {
     TokenType type;
     const char* start;
     int length;
     int line;
-};
+} Token;
 
 void initScanner(const char* source);
 Token scanToken();

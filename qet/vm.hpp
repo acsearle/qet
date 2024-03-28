@@ -8,29 +8,37 @@
 #ifndef vm_hpp
 #define vm_hpp
 
-#include "chunk.hpp"
+#include "object.hpp"
 #include "table.hpp"
 #include "value.hpp"
 
-constexpr size_t STACK_MAX = 256;
+#define FRAMES_MAX 64
+#define STACK_MAX (FRAMES_MAX + UINT8_COUNT)
 
-struct VM {
-    Chunk* chunk;
+typedef struct {
+    ObjClosure* closure;
     uint8_t* ip;
+    Value* slots;
+} CallFrame;
+
+typedef struct {
+    CallFrame frames[FRAMES_MAX];
+    int frameCount;
+    
     Value stack[STACK_MAX];
     Value* stackTop;
     Table globals;
     Table strings;
     Obj* objects;
-};
+} VM;
 
 extern VM vm;
 
-enum InterpretResult {
+typedef enum {
     INTERPRET_OK,
     INTERPRET_COMPILE_ERROR,
     INTERPRET_RUNTIME_ERROR,
-};
+} InterpretResult;
 
 
 void initVM();

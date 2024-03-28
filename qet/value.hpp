@@ -10,24 +10,24 @@
 
 #include "common.hpp"
 
-struct Obj;
-struct ObjString;
+typedef struct Obj Obj;
+typedef struct ObjString ObjString;
 
-enum ValueType {
+typedef enum {
     VAL_NIL,
     VAL_BOOL,
     VAL_NUMBER,
     VAL_OBJ,
-};
+} ValueType;
 
-struct Value {
+typedef struct {
     ValueType type;
     union {
         bool boolean;
         double number;
         Obj* obj;
     } as;
-};
+} Value;
 
 #define IS_BOOL(value)   ((value).type == VAL_BOOL)
 #define IS_NIL(value)    ((value).type == VAL_NIL)
@@ -44,11 +44,11 @@ struct Value {
 #define OBJ_VAL(object)    ((Value){ VAL_OBJ, {.obj = (Obj*)object}})
 
 
-struct ValueArray {
+typedef struct {
     int capacity;
     int count;
     Value* values;
-};
+} ValueArray;
 
 bool valuesEqual(Value a, Value b);
 void initValueArray(ValueArray* array);

@@ -11,7 +11,7 @@
 #include "common.hpp"
 #include "value.hpp"
 
-enum OpCode : uint8_t {
+typedef enum {
     OP_CONSTANT,
     OP_NIL,
     OP_TRUE,
@@ -22,6 +22,8 @@ enum OpCode : uint8_t {
     OP_GET_GLOBAL,
     OP_DEFINE_GLOBAL,
     OP_SET_GLOBAL,
+    OP_GET_UPVALUE,
+    OP_SET_UPVALUE,
     OP_EQUAL,
     OP_GREATER,
     OP_LESS,
@@ -35,17 +37,18 @@ enum OpCode : uint8_t {
     OP_JUMP,
     OP_JUMP_IF_FALSE,
     OP_LOOP,
+    OP_CALL,
+    OP_CLOSURE,
     OP_RETURN,
-    
-};
+} OpCode;
 
-struct Chunk {
+typedef struct {
     int count;
     int capacity;
     uint8_t* code;
     int* lines;
     ValueArray constants;
-};
+} Chunk;
 
 void initChunk(Chunk* chunk);
 void freeChunk(Chunk* chunk);

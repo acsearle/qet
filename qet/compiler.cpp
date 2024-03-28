@@ -11,6 +11,7 @@
 
 #include "common.hpp"
 #include "compiler.hpp"
+#include "memory.hpp"
 #include "scanner.hpp"
 
 #ifdef DEBUG_PRINT_CODE
@@ -50,6 +51,7 @@ typedef struct {
 typedef struct {
     Token name;
     int depth;
+    bool isCaptured;
 } Local;
 
 typedef struct {
@@ -205,6 +207,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     
     Local* local = &current->locals[current->localCount++];
     local->depth = 0;
+    local->isCaptured = false;
     local->name.start = "";
     local->name.length = 0;
 }
@@ -231,7 +234,11 @@ static void endScope() {
     current->scopeDepth--;
     while (current->localCount > 0 &&
            current->locals[current->localCount - 1].depth > current->scopeDepth) {
-        emitByte(OP_POP);
+        if (current->locals[current->localCount - 1].isCaptured) {
+            emitByte(OP_CLOSE_UPVALUE);
+        } else {
+            emitByte(OP_POP);
+        }
         current->localCount--;
     }
 }
@@ -291,6 +298,7 @@ static int resolveUpvalue(Compiler* compiler, Token* name) {
     
     int local = resolveLocal(compiler->enclosing, name);
     if (local != -1) {
+        compiler->enclosing->locals[local].isCaptured = true;
         return addUpvalue(compiler, (uint8_t)local, true);
     }
     
@@ -310,6 +318,7 @@ static void addLocal(Token name) {
     Local* local = &current->locals[current->localCount++];
     local->name = name;
     local->depth = -1; // Sentinel value for uninitialized variables.
+    local->isCaptured = false;
 }
 
 static void declareVariable() {
@@ -775,4 +784,12 @@ ObjFunction* compile(const char* source) {
     }
     ObjFunction* function = endCompiler();
     return parser.hadError ? NULL : function;
+}
+
+void markCompilerRoots() {
+    Compiler* compiler = current;
+    while (compiler != NULL) {
+        markObject((Obj*)compiler->function);
+        compiler = compiler->enclosing;
+    }
 }

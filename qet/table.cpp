@@ -5,6 +5,7 @@
 //  Created by Antony Searle on 22/3/2024.
 //
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -132,3 +133,24 @@ ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t
     }
 }
 
+void tableRemoveWhite(Table* table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry* entry = &table->entries[i];
+        if (entry->key != NULL && !entry->key->obj.isMarked) {
+            printf("Deleting weak entry (");
+            printValue(OBJ_VAL((Obj*)entry->key));
+            printf(", ");
+            printValue(entry->value);
+            printf(")\n");
+            tableDelete(table, entry->key);
+        }
+    }
+}
+
+void markTable(Table* table) {
+    for (int i = 0; i < table->capacity; i++) {
+        Entry* entry = &table->entries[i];
+        markObject((Obj*)entry->key);
+        markValue(entry->value);
+    }
+}

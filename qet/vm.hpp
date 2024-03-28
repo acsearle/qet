@@ -29,7 +29,14 @@ typedef struct {
     Value* stackTop;
     Table globals;
     Table strings;
+    ObjUpvalue* openUpvalues;
+    
+    size_t bytesAllocated;
+    size_t nextGC;
     Obj* objects;
+    int grayCount;
+    int grayCapacity;
+    Obj** grayStack;
 } VM;
 
 extern VM vm;

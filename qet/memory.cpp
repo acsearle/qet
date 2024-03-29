@@ -75,6 +75,11 @@ static void blackenObject(Obj* object) {
 #endif
     
     switch (object->type) {
+        case OBJ_CLASS: {
+            ObjClass* class_ = (ObjClass*)object;
+            markObject((Obj*)class_->name);
+            break;
+        }
         case OBJ_CLOSURE: {
             ObjClosure* closure = (ObjClosure*)object;
             markObject((Obj*)closure->function);
@@ -89,12 +94,22 @@ static void blackenObject(Obj* object) {
             markArray(&function->chunk.constants);
             break;
         }
-        case OBJ_UPVALUE:
+        case OBJ_INSTANCE: {
+            ObjInstance* instance = (ObjInstance*)object;
+            markObject((Obj*)instance->class_);
+            markTable(&instance->fields);
+            break;
+        }
+        case OBJ_NATIVE: {
+            break;
+        }
+        case OBJ_STRING: {
+            break;
+        }
+        case OBJ_UPVALUE: {
             markValue(((ObjUpvalue*)object)->closed);
             break;
-        case OBJ_NATIVE:
-        case OBJ_STRING:
-            break;
+        }
     }
 }
 
@@ -104,35 +119,38 @@ static void freeObject(Obj* object) {
 #endif
 
     switch (object->type) {
+        case OBJ_CLASS: {
+            FREE(OBJ_CLASS, object);
+            break;
+        }
         case OBJ_CLOSURE: {
-            printf("  ObjClosure\n");
             ObjClosure* closure = (ObjClosure*)object;
             FREE_ARRAY(ObjUpvalue*, closure->upvalues, closure->upvalueCount);
             FREE(ObjClosure, object);
             break;
         }
         case OBJ_FUNCTION: {
-            printf("  ObjFunction\n");
             ObjFunction* function = (ObjFunction*)object;
-            printf("    Chunk\n");
             freeChunk(&function->chunk);
             FREE(ObjFunction, object);         
             break;
         }
+        case OBJ_INSTANCE: {
+            ObjInstance* instance = (ObjInstance*)object;
+            freeTable(&instance->fields);
+            FREE(ObjInstance, object);
+            break;
+        }
         case OBJ_NATIVE:
-            printf("  ObjNative\n");
             FREE(ObjNative, object);
             break;
         case OBJ_STRING: {
-            printf("  ObjString\n");
             ObjString* string = (ObjString*)object;
-            printf("    \"%s\"\n", string->chars);
             FREE_ARRAY(char, string->chars, string->length + 1);
             FREE(ObjString, object);
             break;
         }
         case OBJ_UPVALUE:
-            printf("  ObjUpvalue\n");
             FREE(ObjUpvalue, object);
             break;
     }
@@ -193,11 +211,11 @@ void collectGarbage() {
 #endif
 
     markRoots();
-    printf("-- gc continues (tracing)\n");
+    //printf("-- gc continues (tracing)\n");
     traceReferences();
-    printf("-- gc continues (weak dictionary)\n");
+    //printf("-- gc continues (weak dictionary)\n");
     tableRemoveWhite(&vm.strings);
-    printf("-- gc continues (sweep)\n");
+    //printf("-- gc continues (sweep)\n");
     sweep();
     
     vm.nextGC = vm.bytesAllocated * GC_HEAP_GROW_FACTOR;

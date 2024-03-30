@@ -120,7 +120,7 @@ static bool call(ObjClosure* closure, int argCount) {
 }
 
 static bool callValue(Value callee, int argCount) {
-    if (IS_OBJ(callee)) {
+    if (callee.is_obj()) {
         switch (OBJ_TYPE(callee)) {
             case OBJ_BOUND_METHOD: {
                 ObjBoundMethod* bound = AS_BOUND_METHOD(callee);
@@ -238,13 +238,6 @@ static void defineMethod(ObjString* name) {
     pop();
 }
 
-static bool isFalsey(Value value) {
-    // "Lox follows Ruby in that nil and false are falsey and every other value
-    // behaves like true." This is contra C where arithmetic zero is falsey,
-    // and C++ where empty STL containers may be falsey
-    return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
-}
-
 static void concatenate() {
     ObjString* b = AS_STRING(peek(0));
     ObjString* a = AS_STRING(peek(1));
@@ -276,12 +269,12 @@ static InterpretResult run() {
     
 #define BINARY_OP(valueType, op) \
     do { \
-        if ( !IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1)) ) { \
+        if ( !peek(0).is_number() || !peek(1).is_number() ) { \
             runtimeError("Operands must be numbers."); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
-        double b = AS_NUMBER(pop()); \
-        double a = AS_NUMBER(pop()); \
+        double b = pop().as_number(); \
+        double a = pop().as_number(); \
         push(Value(a op b)); \
     } while(false)
     
@@ -398,7 +391,7 @@ static InterpretResult run() {
             case OP_EQUAL: {
                 Value b = pop();
                 Value a = pop();
-                push(Value(valuesEqual(a, b)));
+                push(Value(a == b));
                 break;
             }
             case OP_LESS: BINARY_OP(BOOL_VAL, <); break;
@@ -406,9 +399,9 @@ static InterpretResult run() {
             case OP_ADD: {
                 if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
                     concatenate();
-                } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
-                    double b = AS_NUMBER(pop());
-                    double a = AS_NUMBER(pop());
+                } else if (peek(0).is_number() && peek(1).is_number()) {
+                    double b = pop().as_number();
+                    double a = pop().as_number();
                     push(Value(a + b));
                 } else {
                     runtimeError("Operands must be two numbers or two strings.");
@@ -420,14 +413,14 @@ static InterpretResult run() {
             case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
             case OP_DIVIDE: BINARY_OP(NUMBER_VAL, /); break;
             case OP_NOT:
-                push(Value(isFalsey(pop())));
+                push(Value(!(bool)pop()));
                 break;
             case OP_NEGATE:
-                if (!IS_NUMBER(peek(0))) {
+                if (!peek(0).is_number()) {
                     runtimeError("Operand must be a number.\n");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(Value(-AS_NUMBER(pop())));
+                push(Value(-pop().as_number()));
                 break;
             case OP_PRINT: {
                 printValue(pop());
@@ -441,7 +434,8 @@ static InterpretResult run() {
             }
             case OP_JUMP_IF_FALSE: {
                 uint16_t offset = READ_SHORT();
-                if (isFalsey(peek(0))) frame->ip += offset;
+                if (!(bool)peek(0))
+                    frame->ip += offset;
                 break;
             }
             case OP_LOOP: {

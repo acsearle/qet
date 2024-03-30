@@ -58,7 +58,8 @@ void markObject(Obj* object) {
 }
 
 void markValue(Value value) {
-    if (IS_OBJ(value)) markObject(AS_OBJ(value));
+    if (value.is_obj())
+        markObject(value.as_obj());
 }
 
 static void markArray(std::vector<Value>* array) {

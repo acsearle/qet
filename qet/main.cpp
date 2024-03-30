@@ -63,12 +63,51 @@ void runFile(const char* path) {
     if (result == INTERPRET_RUNTIME_ERROR) exit(70);
 }
 
+const char* preamble =
+R"""(
 
+// Exercise all samples at startup
 
+fun outer() {
+    var x = "outside";
+    fun inner() {
+        print x;
+    }
+    inner();
+}
+outer();
 
+class Pair {}
+var pair = Pair();
+pair.first = 1;
+pair.second = 2;
+print pair.first + pair.second;
 
-const char* test = R"""(
-class CoffeeMaker { 
+class Nested { 
+    method() {
+        fun function() {
+            print this;
+        }
+    function();
+    }
+}
+
+Nested().method();
+
+class Brunch { eggs() {} }
+var brunch = Brunch();
+var eggs = brunch.eggs;
+
+class Scone { 
+    topping(first, second) {
+        print "scone with " + first + " and " + second;
+    }
+}
+
+var scone = Scone();
+scone.topping("berries", "cream");
+
+class CoffeeMaker {
     init(coffee) {
         this.coffee = coffee;
     }
@@ -79,12 +118,22 @@ class CoffeeMaker {
 }
 var maker = CoffeeMaker("coffee and chicory");
 maker.brew();
+
+fun fib(n) {
+    if (n < 2) 
+        return n;
+    return fib(n - 2) + fib(n - 1);
+} 
+
+var start = clock();
+print fib(29); // was 35
+print clock() - start;
+
 )""";
 
 int main(int argc, const char * argv[]) {
     initVM();
-    
-    /*
+    interpret(preamble);
     if (argc == 1) {
         repl();
     } else if (argc == 2) {
@@ -93,10 +142,6 @@ int main(int argc, const char * argv[]) {
         fprintf(stderr, "Usage: qet [path]\n");
         exit(64);
     }
-     */
-    
-    interpret(test);
-    
     freeVM();
     return 0;
 }

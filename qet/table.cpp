@@ -33,7 +33,7 @@ static Entry* findEntry(Entry* entries, int capacity, ObjString* key) {
     for (;;) {
         Entry* entry = &entries[index];
         if (entry->key == NULL) {
-            if (IS_NIL(entry->value)) {
+            if (entry->value.is_nil()) {
                 // Empty entry.
                 return (tombstone != NULL) ? tombstone : entry;
             } else {
@@ -98,8 +98,9 @@ bool tableSet(Table* table, ObjString* key, Value value) {
         adjustCapacity(table, capacity);
     }
     Entry* entry = findEntry(table->entries, table->capacity, key);
-    bool isNewKey = entry->key == NULL;
-    if (isNewKey && IS_NIL(entry->value)) table->count++;
+    bool isNewKey = (entry->key == NULL);
+    if (isNewKey && entry->value.is_nil())
+        ++(table->count);
     entry->key = key;
     entry->value = value;
     return isNewKey;
@@ -122,7 +123,7 @@ ObjString* tableFindString(Table* table, const char* chars, int length, uint32_t
         Entry* entry = &table->entries[index];
         if (entry->key == NULL) {
             // Stop if we find an empty non-tombstone entry.
-            if (IS_NIL(entry->value)) return NULL;
+            if (entry->value.is_nil()) return NULL;
         } else if (entry->key->length == length &&
                    entry->key->hash == hash &&
                    memcmp(entry->key->chars, chars, length) == 0) {
@@ -137,11 +138,13 @@ void tableRemoveWhite(Table* table) {
     for (int i = 0; i < table->capacity; i++) {
         Entry* entry = &table->entries[i];
         if (entry->key != NULL && !entry->key->obj.isMarked) {
+            /*
             printf("Deleting weak entry (");
             printValue(Value((Obj*)entry->key));
             printf(", ");
             printValue(entry->value);
             printf(")\n");
+             */
             tableDelete(table, entry->key);
         }
     }

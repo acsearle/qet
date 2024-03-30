@@ -15,7 +15,7 @@
 bool Value::invariant() const {
     switch (type) {
         case VAL_NIL:
-            return as.obj == nullptr;
+            return as.obj == nullptr; // caution punning
         case VAL_BOOL:
             return true;
         case VAL_NUMBER:

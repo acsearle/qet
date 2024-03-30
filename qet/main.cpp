@@ -67,10 +67,24 @@ void runFile(const char* path) {
 
 
 
-
+const char* test = R"""(
+class CoffeeMaker { 
+    init(coffee) {
+        this.coffee = coffee;
+    }
+    brew() {
+        print "Enjoy your cup of " + this.coffee;
+        this.coffee = nil; 
+    }
+}
+var maker = CoffeeMaker("coffee and chicory");
+maker.brew();
+)""";
 
 int main(int argc, const char * argv[]) {
     initVM();
+    
+    /*
     if (argc == 1) {
         repl();
     } else if (argc == 2) {
@@ -79,6 +93,10 @@ int main(int argc, const char * argv[]) {
         fprintf(stderr, "Usage: qet [path]\n");
         exit(64);
     }
+     */
+    
+    interpret(test);
+    
     freeVM();
     return 0;
 }

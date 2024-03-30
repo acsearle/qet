@@ -74,7 +74,7 @@ ObjFunction* newFunction() {
     function->arity = 0;
     function->upvalueCount = 0;
     function->name = NULL;
-    initChunk(&function->chunk);
+    std::construct_at(&function->chunk);
     return function;
 }
 
@@ -86,7 +86,7 @@ ObjNative* newNative(NativeFn function) {
 
 ObjUpvalue* newUpvalue(Value* slot) {
     ObjUpvalue* upvalue = ALLOCATE_OBJ(ObjUpvalue, OBJ_UPVALUE);
-    upvalue->closed = NIL_VAL;
+    upvalue->closed = Value();
     upvalue->location = slot;
     upvalue->next = NULL;
     return upvalue;
@@ -98,8 +98,8 @@ static ObjString* allocateString(char* chars, int length, uint32_t hash) {
     string->chars = chars;
     string->hash = hash;
     
-    push(OBJ_VAL(string));
-    tableSet(&vm.strings, string, NIL_VAL);
+    push(Value((Obj*)string));
+    tableSet(&vm.strings, string, Value());
     pop();
     
     return string;

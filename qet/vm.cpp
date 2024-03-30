@@ -20,7 +20,7 @@
 VM vm;
 
 static Value clockNative(int argCount, Value* args) {
-    return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
+    return Value((double)clock() / CLOCKS_PER_SEC);
 }
 
 static void resetStack() {
@@ -39,7 +39,7 @@ static void runtimeError(const char* format, ...) {
     for (int i = vm.frameCount - 1; i >= 0; i--) {
         CallFrame* frame = &vm.frames[i];
         ObjFunction* function = frame->closure->function;
-        size_t instruction = frame->ip - function->chunk.code - 1;
+        ptrdiff_t instruction = frame->ip - function->chunk.code.data() - 1;
         fprintf(stderr, "[line %d] in ",
                 function->chunk.lines[instruction]);
         if (function->name == NULL) {
@@ -53,8 +53,8 @@ static void runtimeError(const char* format, ...) {
 }
 
 static void defineNative(const char* name, NativeFn function) {
-    push(OBJ_VAL(copyString(name, (int) strlen(name))));
-    push(OBJ_VAL(newNative(function)));
+    push(Value((Obj*)copyString(name, (int) strlen(name))));
+    push(Value((Obj*)newNative(function)));
     tableSet(&vm.globals, AS_STRING(vm.stackTop[-2]), vm.stackTop[-1]);
     pop();
     pop();
@@ -114,7 +114,7 @@ static bool call(ObjClosure* closure, int argCount) {
     
     CallFrame* frame = &vm.frames[vm.frameCount++];
     frame->closure = closure;
-    frame->ip = closure->function->chunk.code;
+    frame->ip = closure->function->chunk.code.data();
     frame->slots = vm.stackTop - argCount - 1;
     return true;
 }
@@ -129,7 +129,7 @@ static bool callValue(Value callee, int argCount) {
             }
             case OBJ_CLASS: {
                 ObjClass* class_ = AS_CLASS(callee);
-                vm.stackTop[-argCount - 1] = OBJ_VAL(newInstance(class_));
+                vm.stackTop[-argCount - 1] = Value((Obj*)newInstance(class_));
                 Value initializer;
                 if (tableGet(&class_->methods, vm.initString, &initializer)) {
                     return call(AS_CLOSURE(initializer), argCount);
@@ -195,7 +195,7 @@ static bool bindMethod(ObjClass* class_, ObjString* name) {
     }
     ObjBoundMethod* bound = newBoundMethod(peek(0), AS_CLOSURE(method));
     pop();
-    push(OBJ_VAL(bound));
+    push(Value((Obj*)bound));
     return true;
 }
 
@@ -258,7 +258,7 @@ static void concatenate() {
     ObjString* result = takeString(chars, length);
     pop();
     pop();
-    push(OBJ_VAL(result));
+    push(Value((Obj*)result));
 }
 
 static InterpretResult run() {
@@ -270,7 +270,7 @@ static InterpretResult run() {
     (frame->ip += 2, \
     (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 
-#define READ_CONSTANT() (frame->closure->function->chunk.constants.values[READ_BYTE()])
+#define READ_CONSTANT() (frame->closure->function->chunk.constants[READ_BYTE()])
 
 #define READ_STRING() AS_STRING(READ_CONSTANT())
     
@@ -282,7 +282,7 @@ static InterpretResult run() {
         } \
         double b = AS_NUMBER(pop()); \
         double a = AS_NUMBER(pop()); \
-        push(valueType(a op b)); \
+        push(Value(a op b)); \
     } while(false)
     
     for (;;) {
@@ -295,7 +295,7 @@ static InterpretResult run() {
         }
         printf("\n");
         disassembleInstruction(&frame->closure->function->chunk,
-                               (int) (frame->ip - frame->closure->function->chunk.code));
+                               frame->ip - frame->closure->function->chunk.code.data());
 #endif
         
         uint8_t instruction;
@@ -305,9 +305,9 @@ static InterpretResult run() {
                 push(constant);
                 break;
             }
-            case OP_NIL: push(NIL_VAL); break;
-            case OP_TRUE: push(BOOL_VAL(true)); break;
-            case OP_FALSE: push(BOOL_VAL(false)); break;
+            case OP_NIL: push(Value()); break;
+            case OP_TRUE: push(Value(true)); break;
+            case OP_FALSE: push(Value(false)); break;
             case OP_POP: pop(); break;
             case OP_GET_LOCAL: {
                 uint8_t slot = READ_BYTE();
@@ -398,7 +398,7 @@ static InterpretResult run() {
             case OP_EQUAL: {
                 Value b = pop();
                 Value a = pop();
-                push(BOOL_VAL(valuesEqual(a, b)));
+                push(Value(valuesEqual(a, b)));
                 break;
             }
             case OP_LESS: BINARY_OP(BOOL_VAL, <); break;
@@ -409,7 +409,7 @@ static InterpretResult run() {
                 } else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
                     double b = AS_NUMBER(pop());
                     double a = AS_NUMBER(pop());
-                    push(NUMBER_VAL(a + b));
+                    push(Value(a + b));
                 } else {
                     runtimeError("Operands must be two numbers or two strings.");
                     return INTERPRET_RUNTIME_ERROR;
@@ -420,14 +420,14 @@ static InterpretResult run() {
             case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
             case OP_DIVIDE: BINARY_OP(NUMBER_VAL, /); break;
             case OP_NOT:
-                push(BOOL_VAL(isFalsey(pop())));
+                push(Value(isFalsey(pop())));
                 break;
             case OP_NEGATE:
                 if (!IS_NUMBER(peek(0))) {
                     runtimeError("Operand must be a number.\n");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(NUMBER_VAL(-AS_NUMBER(pop())));
+                push(Value(-AS_NUMBER(pop())));
                 break;
             case OP_PRINT: {
                 printValue(pop());
@@ -479,7 +479,7 @@ static InterpretResult run() {
             case OP_CLOSURE: {
                 ObjFunction* function = AS_FUNCTION(READ_CONSTANT());
                 ObjClosure* closure = newClosure(function);
-                push(OBJ_VAL(closure));
+                push(Value((Obj*)closure));
                 for (int i = 0; i < closure->upvalueCount; i++) {
                     uint8_t isLocal = READ_BYTE();
                     uint8_t index = READ_BYTE();
@@ -512,7 +512,7 @@ static InterpretResult run() {
                 break;
             }
             case OP_CLASS: {
-                push(OBJ_VAL(newClass(READ_STRING())));
+                push(Value((Obj*)newClass(READ_STRING())));
                 break;
             }
             case OP_INHERIT: {
@@ -546,10 +546,10 @@ InterpretResult interpret(const char* source) {
     ObjFunction* function = compile(source);
     if (function == NULL) return INTERPRET_COMPILE_ERROR;
     
-    push(OBJ_VAL(function));
+    push(Value((Obj*)function));
     ObjClosure* closure = newClosure(function);
     pop();
-    push(OBJ_VAL(closure));
+    push(Value((Obj*)closure));
     call(closure, 0);
     
     return run();

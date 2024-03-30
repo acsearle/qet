@@ -66,7 +66,7 @@ bool tableDelete(Table* table, ObjString* key) {
     
     // Place a tombstone in the entry.
     entry->key = NULL;
-    entry->value = BOOL_VAL(true);
+    entry->value = Value(true);
     return true;
 }
 
@@ -74,7 +74,7 @@ static void adjustCapacity(Table* table, int capacity) {
     Entry* entries = ALLOCATE(Entry, capacity);
     for (int i = 0; i < capacity; i++) {
         entries[i].key = NULL;
-        entries[i].value = NIL_VAL;
+        entries[i].value = Value();
     }
     table->count = 0;
     for (int i = 0; i < table->capacity; i++) {
@@ -138,7 +138,7 @@ void tableRemoveWhite(Table* table) {
         Entry* entry = &table->entries[i];
         if (entry->key != NULL && !entry->key->obj.isMarked) {
             printf("Deleting weak entry (");
-            printValue(OBJ_VAL((Obj*)entry->key));
+            printValue(Value((Obj*)entry->key));
             printf(", ");
             printValue(entry->value);
             printf(")\n");

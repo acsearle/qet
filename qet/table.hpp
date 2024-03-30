@@ -11,6 +11,8 @@
 #include "common.hpp"
 #include "value.hpp"
 
+struct ObjString;
+
 struct Entry {
     ObjString* key;
     Value value;

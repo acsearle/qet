@@ -5,7 +5,7 @@
 
 void disassembleChunk(Chunk* chunk, const char* name);
 
-int disassembleInstruction(Chunk* chunk, int offset);
+ptrdiff_t disassembleInstruction(Chunk* chunk, ptrdiff_t offset);
 
 
 #endif /* debug_hpp */

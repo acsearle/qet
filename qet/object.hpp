@@ -49,6 +49,8 @@ struct Obj {
     Obj* next;
 };
 
+struct ObjString;
+
 struct ObjFunction {
     Obj obj;
     int arity;

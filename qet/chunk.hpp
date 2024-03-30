@@ -8,10 +8,12 @@
 #ifndef chunk_hpp
 #define chunk_hpp
 
+#include <vector>
+
 #include "common.hpp"
 #include "value.hpp"
 
-enum OpCode {
+enum OpCode : uint8_t {
     OP_CONSTANT,
     OP_NIL,
     OP_TRUE,
@@ -52,20 +54,18 @@ enum OpCode {
 };
 
 struct Chunk {
-    int count;
-    int capacity;
-    uint8_t* code;
-    int* lines;
-    ValueArray constants;
+            
+    std::vector<uint8_t> code;
+    std::vector<int> lines;
+    
+    std::vector<Value> constants;
+    
+    void write(uint8_t byte, int line);
+    size_t add_constant(Value value);
+    
+    // TODO: gc; account for vector allocations in total
+    // TODO: better lines (provide a pointer into the source for each opecode?)
+    
 };
-
-void initChunk(Chunk* chunk);
-void freeChunk(Chunk* chunk);
-void writeChunk(Chunk* chunk, uint8_t byte, int line);
-int addConstant(Chunk* chunk, Value value);
-
-
-
-
 
 #endif /* chunk_hpp */

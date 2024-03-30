@@ -7,49 +7,49 @@
 
 void disassembleChunk(Chunk* chunk, const char *name) {
     printf("== %s ==\n", name);
-    for (int offset = 0; offset < chunk->count;) {
+    for (ptrdiff_t offset = 0; offset < chunk->code.size();) {
         offset = disassembleInstruction(chunk, offset);
     }
 }
 
-static int simpleInstruction(const char* name, int offset) {
+static ptrdiff_t simpleInstruction(const char* name, ptrdiff_t offset) {
     printf("%s\n", name);
     return offset + 1;
 }
 
-int constantInstruction(const char* name, Chunk* chunk, int offset) {
+ptrdiff_t constantInstruction(const char* name, Chunk* chunk, ptrdiff_t offset) {
     uint8_t constant = chunk->code[offset + 1];
     uint8_t argCount = chunk->code[offset + 2];
     printf("%-16s (%d args) %4d '", name, argCount, constant);
-    printValue(chunk->constants.values[constant]);
+    printValue(chunk->constants[constant]);
     printf("'\n");
     return offset + 3;
 }
 
-int invokeInstruction(const char* name, Chunk* chunk, int offset) {
+ptrdiff_t invokeInstruction(const char* name, Chunk* chunk, ptrdiff_t offset) {
     uint8_t constant = chunk->code[offset + 1];
     printf("%-16s %4d '", name, constant);
-    printValue(chunk->constants.values[constant]);
+    printValue(chunk->constants[constant]);
     printf("'\n");
     return offset + 2;
 }
 
-int byteInstruction(const char* name, Chunk* chunk, int offset) {
+ptrdiff_t byteInstruction(const char* name, Chunk* chunk, ptrdiff_t offset) {
     uint8_t slot = chunk->code[offset + 1];
     printf("%-16s %4d\n", name, slot);
     return offset + 2;
 }
 
-int jumpInstruction(const char* name, int sign, Chunk* chunk, int offset) {
+ptrdiff_t jumpInstruction(const char* name, int sign, Chunk* chunk, ptrdiff_t offset) {
     uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
-    printf("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jump);
+    printf("%-16s %4ld -> %ld\n", name, offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
-int disassembleInstruction(Chunk* chunk, int offset) {
-    printf("%04d ", offset);
-    if (offset > 0 && 
+ptrdiff_t disassembleInstruction(Chunk* chunk, ptrdiff_t offset) {
+    printf("%04ld ", offset);
+    if (offset > 0 &&
         chunk->lines[offset] == chunk->lines[offset - 1]) {
         printf("   | ");
     } else {
@@ -124,14 +124,14 @@ int disassembleInstruction(Chunk* chunk, int offset) {
             offset++;
             uint8_t constant =  chunk->code[offset++];
             printf("%-16s %4d ", "OP_CLOSURE", constant);
-            printValue(chunk->constants.values[constant]);
+            printValue(chunk->constants[constant]);
             printf("\n");
             
-            ObjFunction* function = AS_FUNCTION(chunk->constants.values[constant]);
+            ObjFunction* function = AS_FUNCTION(chunk->constants[constant]);
             for (int j = 0; j < function->upvalueCount; j++) {
                 int isLocal = chunk->code[offset++];
                 int index = chunk->code[offset++];
-                printf("%04d      |                     %s %d\n",
+                printf("%04ld      |                     %s %d\n",
                        offset - 2, isLocal ? "local  " : "upvalue", index);
             }
             

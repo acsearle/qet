@@ -42,7 +42,7 @@ void markObject(Obj* object) {
     if (object->isMarked) return;
 #ifdef DEBUG_LOG_GC
     printf("%p mark ", (void*)object);
-    printValue(OBJ_VAL(object));
+    printValue(Value((Obj*)object));
     printf("\n");
 #endif
     object->isMarked = true;
@@ -61,16 +61,18 @@ void markValue(Value value) {
     if (IS_OBJ(value)) markObject(AS_OBJ(value));
 }
 
-static void markArray(ValueArray* array) {
-    for (int i = 0; i < array->count; i++) {
-        markValue(array->values[i]);
-    }
+static void markArray(std::vector<Value>* array) {
+    // for (int i = 0; i < array->count; i++) {
+    //    markValue(array->values[i]);
+    // }
+    for (Value value : *array)
+        markValue(value);
 }
 
 static void blackenObject(Obj* object) {
 #ifdef DEBUG_LOG_GC
     printf("%p blacken ", (void*)object);
-    printValue(OBJ_VAL(object));
+    printValue(Value((Obj*)object));
     printf("\n");
 #endif
     
@@ -143,8 +145,8 @@ static void freeObject(Obj* object) {
         }
         case OBJ_FUNCTION: {
             ObjFunction* function = (ObjFunction*)object;
-            freeChunk(&function->chunk);
-            FREE(ObjFunction, object);         
+            std::destroy_at(&function->chunk);
+            FREE(ObjFunction, object);
             break;
         }
         case OBJ_INSTANCE: {

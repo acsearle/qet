@@ -11,11 +11,11 @@
 #include "common.hpp"
 #include "scanner.hpp"
 
-typedef struct {
+struct Scanner {
     const char* start;
     const char* current;
     int line;
-} Scanner;
+};
 
 Scanner scanner;
 

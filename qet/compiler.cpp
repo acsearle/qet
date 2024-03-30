@@ -19,14 +19,14 @@
 #endif
 
 
-typedef struct {
+struct Parser {
     Token current;
     Token previous;
     bool hadError;
     bool panicMode;
-} Parser;
+};
 
-typedef enum {
+enum Precedence {
     PREC_NONE,
     PREC_ASSIGNMENT,  // =
     PREC_OR,          // or
@@ -38,36 +38,36 @@ typedef enum {
     PREC_UNARY,       // ! -
     PREC_CALL,        // . ()
     PREC_PRIMARY,
-} Precedence;
+};
 
-typedef void (*ParseFn)(bool canAssign);
+using ParseFn = void (*)(bool canAssign);
 
-typedef struct {
+struct ParseRule {
     ParseFn prefix;
     ParseFn infix;
     Precedence precedence;
-} ParseRule;
+};
 
-typedef struct {
+struct Local {
     Token name;
     int depth;
     bool isCaptured;
-} Local;
+};
 
-typedef struct {
+struct Upvalue {
     uint8_t index;
     bool isLocal;
-} Upvalue;
+};
 
-typedef enum {
+enum FunctionType {
     TYPE_FUNCTION,
     TYPE_INITIALIZER,
     TYPE_METHOD,
     TYPE_SCRIPT,
-} FunctionType;
+};
 
-typedef struct Compiler {
-    struct Compiler* enclosing;
+struct Compiler {
+    Compiler* enclosing;
     ObjFunction* function;
     FunctionType type;
     
@@ -75,12 +75,12 @@ typedef struct Compiler {
     int localCount;
     Upvalue upvalues[UINT8_COUNT];
     int scopeDepth;
-} Compiler;
+};
 
-typedef struct ClassCompiler {
-    struct ClassCompiler* enclosing;
+struct ClassCompiler {
+    ClassCompiler* enclosing;
     bool hasSuperclass;
-} ClassCompiler;
+};
 
 Parser parser;
 Compiler* current = NULL;

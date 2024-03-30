@@ -32,7 +32,7 @@
 #define AS_STRING(value) ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value) (((ObjString*)AS_OBJ(value))->chars)
 
-typedef enum {
+enum ObjType {
     OBJ_BOUND_METHOD,
     OBJ_CLASS,
     OBJ_CLOSURE,
@@ -41,28 +41,28 @@ typedef enum {
     OBJ_NATIVE,
     OBJ_STRING,
     OBJ_UPVALUE,
-} ObjType;
+};
 
 struct Obj {
     ObjType type;
     bool isMarked;
-    struct Obj* next;
+    Obj* next;
 };
 
-typedef struct {
+struct ObjFunction {
     Obj obj;
     int arity;
     int upvalueCount;
     Chunk chunk;
     ObjString* name;
-} ObjFunction;
+};
 
-typedef Value (*NativeFn)(int argCount, Value* args);
+using NativeFn = Value (*)(int argCount, Value* args);
 
-typedef struct {
+struct ObjNative {
     Obj obj;
     NativeFn function;
-} ObjNative;
+};
 
 struct ObjString {
     Obj obj;
@@ -71,37 +71,37 @@ struct ObjString {
     uint32_t hash;
 };
 
-typedef struct ObjUpvalue {
+struct ObjUpvalue {
     Obj obj;
     Value* location;
     Value closed;
-    struct ObjUpvalue* next;
-} ObjUpvalue;
+    ObjUpvalue* next;
+};
 
-typedef struct {
+struct ObjClosure {
     Obj obj;
     ObjFunction* function;
     ObjUpvalue** upvalues;
     int upvalueCount;
-} ObjClosure;
+};
 
-typedef struct {
+struct ObjClass {
     Obj obj;
     ObjString* name;
     Table methods;
-} ObjClass;
+};
 
-typedef struct {
+struct ObjInstance {
     Obj obj;
     ObjClass* class_;
     Table fields;
-} ObjInstance;
+};
 
-typedef struct {
+struct ObjBoundMethod {
     Obj obj;
     Value receiver;
     ObjClosure* method;
-} ObjBoundMethod;
+};
 
 ObjBoundMethod* newBoundMethod(Value receiver, 
                                ObjClosure* method);

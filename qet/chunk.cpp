@@ -15,9 +15,9 @@ void Chunk::write(uint8_t byte, int line) {
 }
 
 size_t Chunk::add_constant(Value value) {
-    push(value);
+    gc.roots.push_back(value);
     constants.push_back(value);
-    pop();
+    gc.roots.pop_back();
     return constants.size() - 1;
 }
 

@@ -126,12 +126,13 @@ fun fib(n) {
 } 
 
 var start = clock();
-print fib(29); // was 35
+print fib(7); // was 29 // was 35
 print clock() - start;
 
 )""";
 
 int main(int argc, const char * argv[]) {
+    initGC();
     initVM();
     interpret(preamble);
     if (true) {
@@ -145,5 +146,6 @@ int main(int argc, const char * argv[]) {
         }
     }
     freeVM();
+    freeGC();
     return 0;
 }

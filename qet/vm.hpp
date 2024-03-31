@@ -12,11 +12,27 @@
 #include "table.hpp"
 #include "value.hpp"
 
-#define FRAMES_MAX 64
-#define STACK_MAX (FRAMES_MAX + UINT8_COUNT)
+struct GC {
+    Table strings;
+    ObjectString* initString;
+    
+    size_t bytesAllocated;
+    size_t nextGC;
+    Object* objects;
+    int grayCount;
+    int grayCapacity;
+    Object** grayStack;
+    
+    std::vector<Value> roots;
+};
+
+extern GC gc;
+
+constexpr size_t FRAMES_MAX = 64;
+constexpr size_t STACK_MAX  = FRAMES_MAX + UINT8_COUNT;
 
 struct CallFrame {
-    ObjClosure* closure;
+    ObjectClosure* closure;
     uint8_t* ip;
     Value* slots;
 };
@@ -28,16 +44,8 @@ struct VM {
     Value stack[STACK_MAX];
     Value* stackTop;
     Table globals;
-    Table strings;
-    ObjString* initString;
-    ObjUpvalue* openUpvalues;
+    ObjectUpvalue* openUpvalues;
     
-    size_t bytesAllocated;
-    size_t nextGC;
-    Obj* objects;
-    int grayCount;
-    int grayCapacity;
-    Obj** grayStack;
 };
 
 extern VM vm;
@@ -48,7 +56,8 @@ enum InterpretResult {
     INTERPRET_RUNTIME_ERROR,
 };
 
-
+void initGC();
+void freeGC();
 void initVM();
 void freeVM();
 InterpretResult interpret(const char* source);

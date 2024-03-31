@@ -12,24 +12,34 @@
 
 #include "common.hpp"
 
-struct Obj;
+struct Object;
 
-enum ValueType {
-    VAL_NIL,
-    VAL_BOOL,
-    VAL_NUMBER,
-    VAL_OBJ,
-};
+#define E \
+    X(NIL)\
+    X(BOOL)\
+    X(INT64)\
+    X(OBJECT)\
+
+#define X(Z) VALUE_##Z,
+enum ValueType { E };
+#undef X
+
+#define X(Z) [VALUE_##Z] = "VALUE_" #Z,
+constexpr const char* valueTypeCString[] { E };
+#undef X
+
+#undef E
 
 struct Value {
     
     ValueType type;
     
+    // 4 bytes padding
+    
     union _as_t {
         
-        bool boolean;
-        double number;
-        Obj* obj;         // garbage collected
+        int64_t int64;
+        Object* object;         // garbage collected
         
         uint8_t bytes[8];
         
@@ -37,24 +47,23 @@ struct Value {
     
     bool invariant() const;
     
-    explicit Value() { type = VAL_NIL; as.obj = nullptr; }
-    
-    explicit Value(bool value) { type = VAL_BOOL; as.boolean = value; }
-    explicit Value(double value) { type = VAL_NUMBER; as.number = value; }
-    explicit Value(Obj* value) { type = VAL_OBJ; assert(value != nullptr); as.obj = value; }
-    
+    explicit Value() { type = VALUE_NIL; as.object = nullptr; }
+    explicit Value(bool value) { type = VALUE_BOOL; as.int64 = value; }
+    explicit Value(int64_t value) { type = VALUE_INT64; as.int64 = value; }
+    explicit Value(Object* value) { type = VALUE_OBJECT; assert(value != nullptr); as.object = value; }
+
     explicit operator bool() const {
-        return (type != VAL_NIL) && ((type != VAL_BOOL) || as.boolean);
+        return (type != VALUE_NIL) && ((type != VALUE_BOOL) || as.int64);
     }
         
-    bool is_nil()    const { return type == VAL_NIL   ; }
-    bool is_bool()   const { return type == VAL_BOOL  ; }
-    bool is_number() const { return type == VAL_NUMBER; }
-    bool is_obj()    const { return type == VAL_OBJ   ; }
+    bool is_nil()     const { return type == VALUE_NIL    ; }
+    bool is_bool()    const { return type == VALUE_BOOL   ; }
+    bool is_int64()   const { return type == VALUE_INT64  ; }
+    bool is_object()     const { return type == VALUE_OBJECT    ; }
     
-    bool as_bool() const { assert(is_bool()); return as.boolean; }
-    double as_number() const { assert(is_number()); return as.number; }
-    Obj* as_obj() const { assert(is_obj()); return as.obj; }
+    bool     as_bool()    const { assert(is_bool());    return (bool) as.int64; }
+    int64_t  as_int64()   const { assert(is_int64());   return as.int64; }
+    Object*     as_object()     const { assert(is_object());     return as.object; }
     
 };
 
@@ -64,14 +73,14 @@ void printValue(Value value);
 
 decltype(auto) visit(const Value& value, auto&& visitor) {
     switch (value.type) {
-        case VAL_NIL:
+        case VALUE_NIL:
             return std::forward<decltype(visitor)>(value.as.bytes);
-        case VAL_BOOL:
-            return std::forward<decltype(visitor)>(value.as.boolean);
-        case VAL_NUMBER:
-            return std::forward<decltype(visitor)>(value.as.number);
-        case VAL_OBJ:
-            return std::forward<decltype(visitor)>(value.as.obj);
+        case VALUE_BOOL:
+            return std::forward<decltype(visitor)>((bool) value.as.int64);
+        case VALUE_INT64:
+            return std::forward<decltype(visitor)>(value.as.int64);
+        case VALUE_OBJECT:
+            return std::forward<decltype(visitor)>(value.as.object);
     }
 }
 

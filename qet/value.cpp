@@ -5,6 +5,7 @@
 //  Created by Antony Searle on 20/3/2024.
 //
 
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 
@@ -14,14 +15,14 @@
 
 bool Value::invariant() const {
     switch (type) {
-        case VAL_NIL:
-            return as.obj == nullptr; // caution punning
-        case VAL_BOOL:
+        case VALUE_NIL:
+            return as.int64 == 0; // caution punning
+        case VALUE_BOOL:
+            return (as.int64 == 0) || (as.int64 == 1);
+        case VALUE_INT64:
             return true;
-        case VAL_NUMBER:
-            return true;
-        case VAL_OBJ:
-            return as.obj != nullptr;
+        case VALUE_OBJECT:
+            return as.object != nullptr;
         default:
             return false;
     }
@@ -29,22 +30,36 @@ bool Value::invariant() const {
 
 void printValue(Value value) {
     switch (value.type) {
-        case VAL_BOOL:
+        case VALUE_BOOL:
             printf(value.as_bool() ? "true" : "false");
             break;
-        case VAL_NIL: printf("nil"); break;
-        case VAL_NUMBER: printf("%g", value.as_number()); break;
-        case VAL_OBJ: printObject(value); break;
+        case VALUE_NIL: printf("nil"); break;
+        case VALUE_INT64: printf("%" PRId64, value.as_int64()); break;
+        case VALUE_OBJECT: printObject(value); break;
     }
 }
 
+bool equalityAsReals(int64_t a, uint64_t b) {
+    return (a >= 0) && (a == b);
+}
+
+bool equalityAsReals(int64_t a, double b) {
+    return (a == (int64_t)b) && ((double)a == b);
+}
+
+bool equalityAsReals(uint64_t a, double b) {
+    return (a == (uint64_t)b) && ((double)a == b);
+}
+
 bool operator==(const Value& a, const Value& b) {
-    if (a.type != b.type) return false;
+    if (a.type != b.type)
+        return false;
     switch (a.type) {
-        case VAL_BOOL:   return a.as_bool() == b.as_bool();
-        case VAL_NIL:    return true;
-        case VAL_NUMBER: return a.as_number() == b.as_number();
-        case VAL_OBJ:    return a.as_obj() == b.as_obj();
-        default:         return false; // Unreachable.
+        case VALUE_NIL:
+        case VALUE_BOOL:
+        case VALUE_INT64:
+            return a.as.int64 == b.as.int64;
+        case VALUE_OBJECT:
+            return a.as.object == b.as.object;
     }
 }

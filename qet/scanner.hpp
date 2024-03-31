@@ -8,27 +8,57 @@
 #ifndef scanner_hpp
 #define scanner_hpp
 
-enum TokenType {
-    // Single-character tokens.
-    TOKEN_LEFT_PAREN, TOKEN_RIGHT_PAREN,
-    TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE,
-    TOKEN_COMMA, TOKEN_DOT, TOKEN_MINUS, TOKEN_PLUS,
-    TOKEN_SEMICOLON, TOKEN_SLASH, TOKEN_STAR,
-    // One or two character tokens.
-    TOKEN_BANG, TOKEN_BANG_EQUAL,
-    TOKEN_EQUAL, TOKEN_EQUAL_EQUAL,
-    TOKEN_GREATER, TOKEN_GREATER_EQUAL,
-    TOKEN_LESS, TOKEN_LESS_EQUAL,
-    // Literals.
-    TOKEN_IDENTIFIER, TOKEN_STRING, TOKEN_NUMBER,
-    // Keywords.
-    TOKEN_AND, TOKEN_CLASS, TOKEN_ELSE, TOKEN_FALSE,
-    TOKEN_FOR, TOKEN_FUN, TOKEN_IF, TOKEN_NIL, TOKEN_OR,
-    TOKEN_PRINT, TOKEN_RETURN, TOKEN_SUPER, TOKEN_THIS,
-    TOKEN_TRUE, TOKEN_VAR, TOKEN_WHILE,
-    
-    TOKEN_ERROR, TOKEN_EOF,
-};
+#define E \
+    X(LEFT_PAREN)\
+    X(RIGHT_PAREN)\
+    X(LEFT_BRACE)\
+    X(RIGHT_BRACE)\
+    X(COMMA)\
+    X(DOT)\
+    X(MINUS)\
+    X(PLUS)\
+    X(SEMICOLON)\
+    X(SLASH)\
+    X(STAR)\
+    X(BANG)\
+    X(BANG_EQUAL)\
+    X(EQUAL)\
+    X(EQUAL_EQUAL)\
+    X(GREATER)\
+    X(GREATER_EQUAL)\
+    X(LESS)\
+    X(LESS_EQUAL)\
+    X(IDENTIFIER)\
+    X(STRING)\
+    X(NUMBER)\
+    X(AND)\
+    X(CLASS)\
+    X(ELSE)\
+    X(FALSE)\
+    X(FOR)\
+    X(FUN)\
+    X(IF)\
+    X(NIL)\
+    X(OR)\
+    X(PRINT)\
+    X(RETURN)\
+    X(SUPER)\
+    X(THIS)\
+    X(TRUE)\
+    X(VAR)\
+    X(WHILE)\
+    X(ERROR)\
+    X(EOF)\
+
+#define X(Z) TOKEN_##Z,
+enum TokenType { E };
+#undef X
+
+#define X(Z) [TOKEN_##Z] = "TOKEN_" #Z,
+constexpr const char* TokenTypeCString[] = { E };
+#undef X
+
+#undef E
 
 struct Token {
     TokenType type;

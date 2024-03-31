@@ -11,7 +11,7 @@
 #include "object.hpp"
 #include "vm.hpp"
 
-ObjFunction* compile(const char* source);
+ObjectFunction* compile(const char* source);
 void markCompilerRoots();
 
 #endif /* compiler_hpp */

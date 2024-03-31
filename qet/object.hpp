@@ -13,112 +13,124 @@
 #include "table.hpp"
 #include "value.hpp"
 
-#define OBJ_TYPE(value) (value.as_obj()->type)
+#define OBJECT_TYPE(value) (value.as_object()->type)
 
-#define IS_BOUND_METHOD(value) isObjType(value, OBJ_BOUND_METHOD)
-#define IS_CLASS(value) isObjType(value, OBJ_CLASS)
-#define IS_CLOSURE(value) isObjType(value, OBJ_CLOSURE)
-#define IS_FUNCTION(value) isObjType(value, OBJ_FUNCTION)
-#define IS_INSTANCE(value) isObjType(value, OBJ_INSTANCE)
-#define IS_NATIVE(value) isObjType(value, OBJ_NATIVE)
-#define IS_STRING(value) isObjType(value, OBJ_STRING)
+#define IS_BOUND_METHOD(value) isObjectType(value, OBJECT_BOUND_METHOD)
+#define IS_CLASS(value) isObjectType(value, OBJECT_CLASS)
+#define IS_CLOSURE(value) isObjectType(value, OBJECT_CLOSURE)
+#define IS_FUNCTION(value) isObjectType(value, OBJECT_FUNCTION)
+#define IS_INSTANCE(value) isObjectType(value, OBJECT_INSTANCE)
+#define IS_NATIVE(value) isObjectType(value, OBJECT_NATIVE)
+#define IS_STRING(value) isObjectType(value, OBJECT_STRING)
 
-#define AS_BOUND_METHOD(value) ((ObjBoundMethod*)value.as_obj())
-#define AS_CLASS(value) ((ObjClass*)value.as_obj())
-#define AS_CLOSURE(value) ((ObjClosure*)value.as_obj())
-#define AS_FUNCTION(value) ((ObjFunction*)value.as_obj())
-#define AS_INSTANCE(value) ((ObjInstance*)value.as_obj())
-#define AS_NATIVE(value) (((ObjNative*)value.as_obj())->function)
-#define AS_STRING(value) ((ObjString*)value.as_obj())
-#define AS_CSTRING(value) (((ObjString*)value.as_obj())->chars)
+#define AS_BOUND_METHOD(value) ((ObjectBoundMethod*)value.as_object())
+#define AS_CLASS(value) ((ObjectClass*)value.as_object())
+#define AS_CLOSURE(value) ((ObjectClosure*)value.as_object())
+#define AS_FUNCTION(value) ((ObjectFunction*)value.as_object())
+#define AS_INSTANCE(value) ((ObjectInstance*)value.as_object())
+#define AS_NATIVE(value) (((ObjectNative*)value.as_object())->function)
+#define AS_STRING(value) ((ObjectString*)value.as_object())
+#define AS_CSTRING(value) (((ObjectString*)value.as_object())->chars)
 
-enum ObjType {
-    OBJ_BOUND_METHOD,
-    OBJ_CLASS,
-    OBJ_CLOSURE,
-    OBJ_FUNCTION,
-    OBJ_INSTANCE,
-    OBJ_NATIVE,
-    OBJ_STRING,
-    OBJ_UPVALUE,
-};
+#define E \
+    X(BOUND_METHOD)\
+    X(CLASS)\
+    X(CLOSURE)\
+    X(FUNCTION)\
+    X(INSTANCE)\
+    X(NATIVE)\
+    X(STRING)\
+    X(UPVALUE)\
 
-struct Obj {
-    ObjType type;
+#define X(Z) OBJECT_##Z,
+enum ObjectType { E };
+#undef X
+
+#define X(Z) [OBJECT_##Z] = "OBJECT_" #Z,
+constexpr const char* ObjectTypeCString[] = { E };
+#undef X
+
+#undef E
+
+struct Object {
+    
+    // TODO: Object conflates two responsibilities, being a variant, and being GC
+    // The variant could live in the Value, and we would pass around Value as a
+    // fatter pointer
+    
+    // Variant
+    
+    ObjectType type;
+    
+    // Garbage collection
+    
     bool isMarked;
-    Obj* next;
+    Object* next;
+    
 };
 
-struct ObjString;
+struct ObjectString;
 
-struct ObjFunction {
-    Obj obj;
+struct ObjectFunction : Object {
     int arity;
     int upvalueCount;
     Chunk chunk;
-    ObjString* name;
+    ObjectString* name;
 };
 
 using NativeFn = Value (*)(int argCount, Value* args);
 
-struct ObjNative {
-    Obj obj;
+struct ObjectNative : Object {
     NativeFn function;
 };
 
-struct ObjString {
-    Obj obj;
+struct ObjectString : Object {
     int length;
     char* chars;
     uint32_t hash;
 };
 
-struct ObjUpvalue {
-    Obj obj;
+struct ObjectUpvalue : Object {
     Value* location;
     Value closed;
-    ObjUpvalue* next;
+    ObjectUpvalue* next;
 };
 
-struct ObjClosure {
-    Obj obj;
-    ObjFunction* function;
-    ObjUpvalue** upvalues;
+struct ObjectClosure : Object {
+    ObjectFunction* function;
+    ObjectUpvalue** upvalues;
     int upvalueCount;
 };
 
-struct ObjClass {
-    Obj obj;
-    ObjString* name;
+struct ObjectClass : Object {
+    ObjectString* name;
     Table methods;
 };
 
-struct ObjInstance {
-    Obj obj;
-    ObjClass* class_;
+struct ObjectInstance : Object {
+    ObjectClass* class_;
     Table fields;
 };
 
-struct ObjBoundMethod {
-    Obj obj;
+struct ObjectBoundMethod : Object {
     Value receiver;
-    ObjClosure* method;
+    ObjectClosure* method;
 };
 
-ObjBoundMethod* newBoundMethod(Value receiver, 
-                               ObjClosure* method);
-ObjClass* newClass(ObjString* name);
-ObjClosure* newClosure(ObjFunction* function);
-ObjFunction* newFunction();
-ObjInstance* newInstance(ObjClass* class_);
-ObjNative* newNative(NativeFn function);
-ObjString* takeString(char* chars, int length);
-ObjString* copyString(const char* chars, int length);
-ObjUpvalue* newUpvalue(Value* slot);
+ObjectBoundMethod* newBoundMethod(Value receiver, 
+                               ObjectClosure* method);
+ObjectClass* newClass(ObjectString* name);
+ObjectClosure* newClosure(ObjectFunction* function);
+ObjectFunction* newFunction();
+ObjectInstance* newInstance(ObjectClass* class_);
+ObjectNative* newNative(NativeFn function);
+ObjectString* takeString(char* chars, int length);
+ObjectString* copyString(const char* chars, int length);
+ObjectUpvalue* newUpvalue(Value* slot);
 void printObject(Value value);
 
-static inline bool isObjType(Value value, ObjType type) {
-    return value.is_obj() && value.as_obj()->type == type;
+static inline bool isObjectType(Value value, ObjectType type) {
+    return value.is_object() && value.as_object()->type == type;
 }
 
 #endif /* object_hpp */

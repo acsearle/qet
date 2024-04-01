@@ -52,6 +52,7 @@ using NativeFn = Value (*)(int argCount, Value* args);
     X(FUNCTION)\
     X(INSTANCE)\
     X(NATIVE)\
+    X(RAW)\
     X(STRING)\
     X(UPVALUE)\
 
@@ -68,6 +69,8 @@ struct Object {
     // TODO: Object conflates two responsibilities, being a variant, and being GC
     // The variant could live in the Value, and we would pass around Value as a
     // fatter pointer
+    
+    // If we abandon finalizers, we can do without the type?
     
     // Variant
     
@@ -97,16 +100,14 @@ struct ObjectClass : Object {
     Table methods;
 };
 
-ObjectClosure* newObjectClosure(ObjectFunction* function);
-
 struct ObjectClosure final : Object {
     ObjectFunction* function;
     int upvalueCount;
     ObjectUpvalue* upvalues[];  // flexible array member
-private:
     explicit ObjectClosure(ObjectFunction* function);
-public:
-    friend ObjectClosure* newObjectClosure(ObjectFunction* function);
+    static void* operator new(size_t count, int upvalueCount) {
+        return ::operator new(count + upvalueCount * sizeof(ObjectUpvalue*));
+    }
 };
 
 
@@ -129,16 +130,21 @@ struct ObjectNative : Object {
     explicit ObjectNative(NativeFn function);
 };
 
-ObjectString* newObjectString(const char* chars, int length, uint32_t hash);
+struct ObjectRaw : Object {
+    unsigned char bytes[];
+    static void* operator new(size_t count, size_t extra) {
+        return :: operator new(count + extra);
+    }
+};
 
 struct ObjectString final : Object {
     uint32_t hash;
-    int length;
+    size_t length;
     char chars[]; // flexible array member
-private:
-    ObjectString(const char* chars, int length, uint32_t hash);
-public:
-    friend ObjectString* newObjectString(const char* chars, int length, uint32_t hash);
+    ObjectString(uint32_t hash, size_t length, const char* chars);
+    static void* operator new(size_t count, size_t length) {
+        return ::operator new(count + length + 1);
+    }
 };
 
 ObjectString* takeString(char* chars, int length);

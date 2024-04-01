@@ -478,7 +478,7 @@ static InterpretResult run() {
             }
             case OPCODE_CLOSURE: {
                 ObjectFunction* function = AS_FUNCTION(READ_CONSTANT());
-                ObjectClosure* closure = newObjectClosure(function);
+                ObjectClosure* closure = new(function->upvalueCount) ObjectClosure(function);
                 push(Value(closure));
                 for (int i = 0; i < closure->upvalueCount; i++) {
                     uint8_t isLocal = READ_BYTE();
@@ -547,7 +547,7 @@ InterpretResult interpret(const char* source) {
     if (function == NULL) return INTERPRET_COMPILE_ERROR;
     
     push(Value(function));
-    ObjectClosure* closure = newObjectClosure(function);
+    ObjectClosure* closure = new(function->upvalueCount) ObjectClosure(function);
     pop();
     push(Value(closure));
     call(closure, 0);

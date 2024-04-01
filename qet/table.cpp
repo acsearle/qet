@@ -127,11 +127,12 @@ ObjectString* tableFindString(Table* table, const char* chars, int length, uint3
         Entry* entry = &table->entries[index];
         if (entry->key == NULL) {
             // Stop if we find an empty non-tombstone entry.
-            if (entry->value.is_nil()) return NULL;
+            if (entry->value.is_nil()) {
+                return NULL;
+            }
         } else if (entry->key->length == length &&
                    entry->key->hash == hash &&
                    memcmp(entry->key->chars, chars, length) == 0) {
-            // We found it.
             return entry->key;
         }
         index = (index + 1) & (table->capacity - 1);
@@ -161,3 +162,37 @@ void markTable(Table* table) {
         markValue(entry->value);
     }
 }
+
+void debugTable(Table* table) {
+    printf("struct Table {\n");
+    printf("    int count = %d;\n", table->count);
+    printf("    int capacity = %d;\n", table->capacity);
+    printf("    Entry* entries = {\n");
+    for (int i = 0; i < table->capacity; i++) {
+        printf("        [%d] = { ", i);
+        Entry* entry = &table->entries[i];
+        if (entry->key) {
+            printValue(Value(entry->key));
+        } else {
+            printf("NULL");
+        }
+        printf(", ");
+        printValue(entry->value);
+        printf("    },\n");
+    }
+    printf("}\n");
+}
+
+void printTable(Table* table) {
+    printf("{\n");
+    for (int i = 0; i < table->capacity; i++) {
+        Entry* entry = &table->entries[i];
+        if (entry->key) {
+            printf("\"%s\" : ", entry->key->chars);
+            printValue(entry->value);
+            printf(",\n");
+        }
+    }
+    printf("}\n");
+}
+

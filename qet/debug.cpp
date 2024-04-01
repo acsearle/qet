@@ -7,7 +7,7 @@
 
 static ptrdiff_t simpleInstruction(Chunk* chunk, ptrdiff_t offset) {
     const char* name = OpCodeCString[chunk->code[offset]];
-    printf("%s\n", OpCodeCString[chunk->code[offset]]);
+    printf("%-16s\n", name);
     return offset + 1;
 }
 

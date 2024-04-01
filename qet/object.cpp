@@ -63,12 +63,6 @@ ObjectClosure::ObjectClosure(ObjectFunction* function)
         upvalues[i] = nullptr;
 }
 
-ObjectClosure* newObjectClosure(ObjectFunction* function) {
-    ObjectClosure* closure = (ObjectClosure*) operator new(sizeof(ObjectFunction) + function->upvalueCount * sizeof(ObjectUpvalue*));
-    new (closure) ObjectClosure(function);
-    return closure;
-}
-
 ObjectInstance::ObjectInstance(ObjectClass* class_)
 : Object(OBJECT_INSTANCE) {
     this->class_ = class_;
@@ -94,21 +88,16 @@ ObjectUpvalue::ObjectUpvalue(Value* slot)
 , next(nullptr) {
 }
 
-ObjectString::ObjectString(const char* chars, int length, uint32_t hash)
+ObjectString::ObjectString(uint32_t hash, size_t length, const char* chars)
 : Object(OBJECT_STRING)
 , hash(hash)
 , length(length) {
     memcpy(this->chars, chars, length);
     this->chars[length] = '\0';
+    // printf("Made {%08x %zd \"%.*s\"}\n", hash, length, (int) length, chars);
     gc.roots.push_back(Value(this));
     tableSet(&gc.strings, this, Value());
     gc.roots.pop_back();
-}
-
-ObjectString* newObjectString(const char* chars, int length, uint32_t hash) {
-    ObjectString* string = (ObjectString*) operator new(sizeof(ObjectString) + length + 1);
-    new (string) ObjectString(chars, length, hash);
-    return string;
 }
 
 static uint32_t hashString(const char* key, int length) {
@@ -125,7 +114,7 @@ ObjectString* takeString(char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
     if (interned == nullptr) {
-        interned = newObjectString(chars, length, hash);
+        interned = new(length) ObjectString(hash, length, chars);
     }
     FREE_ARRAY(char, chars, length + 1);
     return interned;
@@ -135,7 +124,7 @@ ObjectString* copyString(const char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
     if (interned == nullptr) {
-        interned = newObjectString(chars, length, hash);
+        interned = new(length) ObjectString(hash, length, chars);
     }
     return interned;
 }

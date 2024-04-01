@@ -14,17 +14,11 @@
 #include "value.hpp"
 
 struct Chunk {
-    
-    // TODO: report the private allocations to the gc
-    // TODO: better introspection from byte to provoking source token
     std::vector<uint8_t> code;
     std::vector<int> lines;
-    
     std::vector<Value> constants;
-    
     void write(uint8_t byte, int line);
-    size_t add_constant(Value value);
-    
+    size_t add_constant(Value value);    
 }; // struct Chunk
 
 #endif /* chunk_hpp */

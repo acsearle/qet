@@ -211,7 +211,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     compiler->type = type;
     compiler->localCount = 0;
     compiler->scopeDepth = 0;
-    compiler->function = newFunction();
+    compiler->function = new ObjectFunction();
     current = compiler;
     if (type != TYPE_SCRIPT) {
         current->function->name = copyString(parser.previous.start,

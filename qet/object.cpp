@@ -14,6 +14,7 @@
 #include "value.hpp"
 #include "vm.hpp"
 
+/*
 #define ALLOCATE_OBJECT(type, objectType) \
     (type*)allocateObject(sizeof(type), objectType)
 
@@ -31,79 +32,78 @@ static Object* allocateObject(size_t size, ObjectType type) {
     
     return object;
 }
-
-ObjectBoundMethod* newBoundMethod(Value receiver, 
-                               ObjectClosure* method) {
-    ObjectBoundMethod* bound = ALLOCATE_OBJECT(ObjectBoundMethod, 
-                                         OBJECT_BOUND_METHOD);
-    bound->receiver = receiver;
-    bound->method = method;
-    return bound;
+*/
+ 
+Object::Object(ObjectType type) {
+    this->type = type;
+    isMarked = false;
+    next = gc.objects;
+    gc.objects = this;
 }
 
-ObjectClass* newClass(ObjectString* name) {
-    ObjectClass* class_ = ALLOCATE_OBJECT(ObjectClass, OBJECT_CLASS);
-    class_->name = name;
-    initTable(&class_->methods);
-    return class_;
+
+ObjectBoundMethod::ObjectBoundMethod(Value receiver,
+                                     ObjectClosure* method) 
+: Object(OBJECT_BOUND_METHOD)
+, receiver(receiver)
+, method(method) {
 }
 
-ObjectClosure* newClosure(ObjectFunction* function) {
-    ObjectUpvalue** upvalues = ALLOCATE(ObjectUpvalue*, 
-                                        function->upvalueCount);
+ObjectClass::ObjectClass(ObjectString* name)
+: Object(OBJECT_CLASS)
+, name(name) {
+    initTable(&methods);
+}
+
+ObjectClosure::ObjectClosure(ObjectFunction* function)
+: Object(OBJECT_CLOSURE)
+, function(function)
+, upvalues(nullptr)
+, upvalueCount(0) {
+    gc.roots.push_back(Value(this));
+    upvalues = ALLOCATE(ObjectUpvalue*,
+                        function->upvalueCount);
     for (int i = 0; i < function->upvalueCount; i++) {
         upvalues[i] = NULL;
     }
-    
-    ObjectClosure* closure = ALLOCATE_OBJECT(ObjectClosure, OBJECT_CLOSURE);
-    closure->function = function;
-    closure->upvalues = upvalues;
-    closure->upvalueCount = function->upvalueCount;
-    return closure;
-}
-
-ObjectInstance* newInstance(ObjectClass* class_) {
-    ObjectInstance* instance = ALLOCATE_OBJECT(ObjectInstance, OBJECT_INSTANCE);
-    instance->class_ = class_;
-    initTable(&instance->fields);
-    return instance;
-}
-
-ObjectFunction* newFunction() {
-    ObjectFunction* function = ALLOCATE_OBJECT(ObjectFunction, OBJECT_FUNCTION);
-    function->arity = 0;
-    function->upvalueCount = 0;
-    function->name = NULL;
-    std::construct_at(&function->chunk);
-    return function;
-}
-
-ObjectNative* newNative(NativeFn function) {
-    ObjectNative* native = ALLOCATE_OBJECT(ObjectNative, OBJECT_NATIVE);
-    native->function = function;
-    return native;
-}
-
-ObjectUpvalue* newUpvalue(Value* slot) {
-    ObjectUpvalue* upvalue = ALLOCATE_OBJECT(ObjectUpvalue, OBJECT_UPVALUE);
-    upvalue->closed = Value();
-    upvalue->location = slot;
-    upvalue->next = NULL;
-    return upvalue;
-}
-
-static ObjectString* allocateString(char* chars, int length, uint32_t hash) {
-    ObjectString* string = ALLOCATE_OBJECT(ObjectString, OBJECT_STRING);
-    string->length = length;
-    string->chars = chars;
-    string->hash = hash;
-    
-    // TODO: idiom conflates vm roots and gc stack
-    gc.roots.push_back(Value(string));
-    tableSet(&gc.strings, string, Value());
+    this->upvalueCount = function->upvalueCount;
     gc.roots.pop_back();
-    
-    return string;
+
+}
+
+ObjectInstance::ObjectInstance(ObjectClass* class_)
+: Object(OBJECT_INSTANCE) {
+    this->class_ = class_;
+    initTable(&fields);
+}
+
+ObjectFunction::ObjectFunction()
+: Object(OBJECT_FUNCTION)
+, arity(0)
+, upvalueCount(0)
+, name(nullptr) {
+}
+
+ObjectNative::ObjectNative(NativeFn function)
+: Object(OBJECT_NATIVE)
+, function(function) {
+}
+
+ObjectUpvalue::ObjectUpvalue(Value* slot)
+: Object(OBJECT_UPVALUE)
+, closed(Value())
+, location(slot)
+, next(nullptr) {
+}
+
+ObjectString::ObjectString(char* chars, int length, uint32_t hash)
+: Object(OBJECT_STRING)
+, length(length)
+, chars(chars)
+, hash(hash) {
+    gc.roots.push_back(Value(this));
+    tableSet(&gc.strings, this, Value());
+    gc.roots.pop_back();
 }
 
 static uint32_t hashString(const char* key, int length) {
@@ -123,7 +123,7 @@ ObjectString* takeString(char* chars, int length) {
         FREE_ARRAY(char, chars, length + 1);
         return interned;
     }
-    return allocateString(chars, length, hash);
+    return new ObjectString(chars, length, hash);
 }
 
 ObjectString* copyString(const char* chars, int length) {
@@ -133,7 +133,7 @@ ObjectString* copyString(const char* chars, int length) {
     char* heapChars = ALLOCATE(char, length + 1);
     memcpy(heapChars, chars, length);
     heapChars[length] = '\0';
-    return allocateString(heapChars, length, hash);
+    return new ObjectString(heapChars, length, hash);
     
 }
 

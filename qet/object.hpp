@@ -13,6 +13,19 @@
 #include "table.hpp"
 #include "value.hpp"
 
+struct Object;
+
+struct ObjectBoundMethod;
+struct ObjectClass;
+struct ObjectClosure;
+struct ObjectFunction;
+struct ObjectInstance;
+struct ObjectNative;
+struct ObjectString;
+struct ObjectUpvalue;
+
+using NativeFn = Value (*)(int argCount, Value* args);
+
 #define OBJECT_TYPE(value) (value.as_object()->type)
 
 #define IS_BOUND_METHOD(value) isObjectType(value, OBJECT_BOUND_METHOD)
@@ -50,7 +63,6 @@ enum ObjectType { ENUMERATE_X_OBJECT };
 constexpr const char* ObjectTypeCString[] = { ENUMERATE_X_OBJECT };
 #undef X
 
-
 struct Object {
     
     // TODO: Object conflates two responsibilities, being a variant, and being GC
@@ -69,66 +81,65 @@ struct Object {
 
     // TODO: tagged pointer would save nothing given the type
     
+    explicit Object(ObjectType type);
+    
 };
 
-struct ObjectString;
+struct ObjectBoundMethod : Object {
+    ObjectBoundMethod(Value receiver, ObjectClosure* method);
+    Value receiver;
+    ObjectClosure* method;
+};
+
+struct ObjectClass : Object {
+    explicit ObjectClass(ObjectString* name);
+    ObjectString* name;
+    Table methods;
+};
+
+struct ObjectClosure : Object {
+    explicit ObjectClosure(ObjectFunction* function);
+    ObjectFunction* function;
+    ObjectUpvalue** upvalues;
+    int upvalueCount;
+};
 
 struct ObjectFunction : Object {
     int arity;
     int upvalueCount;
     Chunk chunk;
     ObjectString* name;
+    ObjectFunction();
 };
 
-using NativeFn = Value (*)(int argCount, Value* args);
+struct ObjectInstance : Object {
+    ObjectClass* class_;
+    Table fields;
+    explicit ObjectInstance(ObjectClass* class_);
+};
 
 struct ObjectNative : Object {
     NativeFn function;
+    explicit ObjectNative(NativeFn function);
 };
+
+ObjectString* takeString(char* chars, int length);
+ObjectString* copyString(const char* chars, int length);
 
 struct ObjectString : Object {
     int length;
     char* chars;
     uint32_t hash;
+    ObjectString(char* chars, int length, uint32_t hash);
 };
 
 struct ObjectUpvalue : Object {
     Value* location;
     Value closed;
     ObjectUpvalue* next;
+    explicit ObjectUpvalue(Value* slot);
 };
 
-struct ObjectClosure : Object {
-    ObjectFunction* function;
-    ObjectUpvalue** upvalues;
-    int upvalueCount;
-};
-
-struct ObjectClass : Object {
-    ObjectString* name;
-    Table methods;
-};
-
-struct ObjectInstance : Object {
-    ObjectClass* class_;
-    Table fields;
-};
-
-struct ObjectBoundMethod : Object {
-    Value receiver;
-    ObjectClosure* method;
-};
-
-ObjectBoundMethod* newBoundMethod(Value receiver, 
-                               ObjectClosure* method);
-ObjectClass* newClass(ObjectString* name);
-ObjectClosure* newClosure(ObjectFunction* function);
-ObjectFunction* newFunction();
-ObjectInstance* newInstance(ObjectClass* class_);
-ObjectNative* newNative(NativeFn function);
-ObjectString* takeString(char* chars, int length);
-ObjectString* copyString(const char* chars, int length);
-ObjectUpvalue* newUpvalue(Value* slot);
 void printObject(Value value);
 
 static inline bool isObjectType(Value value, ObjectType type) {

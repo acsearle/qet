@@ -57,7 +57,7 @@ static void runtimeError(const char* format, ...) {
 
 static void defineNative(const char* name, NativeFn function) {
     push(Value(copyString(name, (int) strlen(name))));
-    push(Value(newNative(function)));
+    push(Value(new ObjectNative(function)));
     tableSet(&vm.globals, AS_STRING(vm.stackTop[-2]), vm.stackTop[-1]);
     pop();
     pop();
@@ -135,7 +135,7 @@ static bool callValue(Value callee, int argCount) {
             }
             case OBJECT_CLASS: {
                 ObjectClass* class_ = AS_CLASS(callee);
-                vm.stackTop[-argCount - 1] = Value(newInstance(class_));
+                vm.stackTop[-argCount - 1] = Value(new ObjectInstance(class_));
                 Value initializer;
                 if (tableGet(&class_->methods, gc.initString, &initializer)) {
                     return call(AS_CLOSURE(initializer), argCount);
@@ -199,7 +199,7 @@ static bool bindMethod(ObjectClass* class_, ObjectString* name) {
         runtimeError("Undefined property '%s'.", name->chars);
         return false;
     }
-    ObjectBoundMethod* bound = newBoundMethod(peek(0), AS_CLOSURE(method));
+    ObjectBoundMethod* bound = new ObjectBoundMethod(peek(0), AS_CLOSURE(method));
     pop();
     push(Value(bound));
     return true;
@@ -217,7 +217,7 @@ static ObjectUpvalue* captureUpvalue(Value* local) {
         return upvalue;
     }
     
-    ObjectUpvalue* createdUpvalue = newUpvalue(local);
+    ObjectUpvalue* createdUpvalue = new ObjectUpvalue(local);
     createdUpvalue->next = upvalue;
     if (prevUpvalue == NULL) {
         vm.openUpvalues = createdUpvalue;
@@ -478,7 +478,7 @@ static InterpretResult run() {
             }
             case OPCODE_CLOSURE: {
                 ObjectFunction* function = AS_FUNCTION(READ_CONSTANT());
-                ObjectClosure* closure = newClosure(function);
+                ObjectClosure* closure = new ObjectClosure(function);
                 push(Value(closure));
                 for (int i = 0; i < closure->upvalueCount; i++) {
                     uint8_t isLocal = READ_BYTE();
@@ -512,7 +512,7 @@ static InterpretResult run() {
                 break;
             }
             case OPCODE_CLASS: {
-                push(Value(newClass(READ_STRING())));
+                push(Value(new ObjectClass(READ_STRING())));
                 break;
             }
             case OPCODE_INHERIT: {
@@ -547,7 +547,7 @@ InterpretResult interpret(const char* source) {
     if (function == NULL) return INTERPRET_COMPILE_ERROR;
     
     push(Value(function));
-    ObjectClosure* closure = newClosure(function);
+    ObjectClosure* closure = new ObjectClosure(function);
     pop();
     push(Value(closure));
     call(closure, 0);

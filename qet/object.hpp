@@ -97,12 +97,18 @@ struct ObjectClass : Object {
     Table methods;
 };
 
-struct ObjectClosure : Object {
-    explicit ObjectClosure(ObjectFunction* function);
+ObjectClosure* newObjectClosure(ObjectFunction* function);
+
+struct ObjectClosure final : Object {
     ObjectFunction* function;
-    ObjectUpvalue** upvalues;
     int upvalueCount;
+    ObjectUpvalue* upvalues[];  // flexible array member
+private:
+    explicit ObjectClosure(ObjectFunction* function);
+public:
+    friend ObjectClosure* newObjectClosure(ObjectFunction* function);
 };
+
 
 struct ObjectFunction : Object {
     int arity;
@@ -123,15 +129,20 @@ struct ObjectNative : Object {
     explicit ObjectNative(NativeFn function);
 };
 
+ObjectString* newObjectString(const char* chars, int length, uint32_t hash);
+
+struct ObjectString final : Object {
+    uint32_t hash;
+    int length;
+    char chars[]; // flexible array member
+private:
+    ObjectString(const char* chars, int length, uint32_t hash);
+public:
+    friend ObjectString* newObjectString(const char* chars, int length, uint32_t hash);
+};
+
 ObjectString* takeString(char* chars, int length);
 ObjectString* copyString(const char* chars, int length);
-
-struct ObjectString : Object {
-    int length;
-    char* chars;
-    uint32_t hash;
-    ObjectString(char* chars, int length, uint32_t hash);
-};
 
 struct ObjectUpvalue : Object {
     Value* location;

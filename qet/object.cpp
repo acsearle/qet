@@ -58,17 +58,15 @@ ObjectClass::ObjectClass(ObjectString* name)
 ObjectClosure::ObjectClosure(ObjectFunction* function)
 : Object(OBJECT_CLOSURE)
 , function(function)
-, upvalues(nullptr)
-, upvalueCount(0) {
-    gc.roots.push_back(Value(this));
-    upvalues = ALLOCATE(ObjectUpvalue*,
-                        function->upvalueCount);
-    for (int i = 0; i < function->upvalueCount; i++) {
-        upvalues[i] = NULL;
-    }
-    this->upvalueCount = function->upvalueCount;
-    gc.roots.pop_back();
+, upvalueCount(function->upvalueCount) {
+    for (int i = 0; i < upvalueCount; i++)
+        upvalues[i] = nullptr;
+}
 
+ObjectClosure* newObjectClosure(ObjectFunction* function) {
+    ObjectClosure* closure = (ObjectClosure*) operator new(sizeof(ObjectFunction) + function->upvalueCount * sizeof(ObjectUpvalue*));
+    new (closure) ObjectClosure(function);
+    return closure;
 }
 
 ObjectInstance::ObjectInstance(ObjectClass* class_)
@@ -96,14 +94,21 @@ ObjectUpvalue::ObjectUpvalue(Value* slot)
 , next(nullptr) {
 }
 
-ObjectString::ObjectString(char* chars, int length, uint32_t hash)
+ObjectString::ObjectString(const char* chars, int length, uint32_t hash)
 : Object(OBJECT_STRING)
-, length(length)
-, chars(chars)
-, hash(hash) {
+, hash(hash)
+, length(length) {
+    memcpy(this->chars, chars, length);
+    this->chars[length] = '\0';
     gc.roots.push_back(Value(this));
     tableSet(&gc.strings, this, Value());
     gc.roots.pop_back();
+}
+
+ObjectString* newObjectString(const char* chars, int length, uint32_t hash) {
+    ObjectString* string = (ObjectString*) operator new(sizeof(ObjectString) + length + 1);
+    new (string) ObjectString(chars, length, hash);
+    return string;
 }
 
 static uint32_t hashString(const char* key, int length) {
@@ -119,22 +124,20 @@ static uint32_t hashString(const char* key, int length) {
 ObjectString* takeString(char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
-    if (interned != NULL) {
-        FREE_ARRAY(char, chars, length + 1);
-        return interned;
+    if (interned == nullptr) {
+        interned = newObjectString(chars, length, hash);
     }
-    return new ObjectString(chars, length, hash);
+    FREE_ARRAY(char, chars, length + 1);
+    return interned;
 }
 
 ObjectString* copyString(const char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
-    if (interned != NULL) return interned;
-    char* heapChars = ALLOCATE(char, length + 1);
-    memcpy(heapChars, chars, length);
-    heapChars[length] = '\0';
-    return new ObjectString(heapChars, length, hash);
-    
+    if (interned == nullptr) {
+        interned = newObjectString(chars, length, hash);
+    }
+    return interned;
 }
 
 static void printFunction(ObjectFunction* function) {

@@ -120,6 +120,10 @@ static void freeObject(Object* object) {
 #ifdef DEBUG_LOG_GC
     printf("%p freeObject of ObjectType %d\n", (void*)object, object->type);
 #endif
+    
+    // TODO: if we can make all the subobjects gc we can dispense with type
+    // information; currently we have member tables and chunks to delete
+    // conventionally
 
     switch (object->type) {
         case OBJECT_BOUND_METHOD:
@@ -132,8 +136,6 @@ static void freeObject(Object* object) {
             break;
         }
         case OBJECT_CLOSURE: {
-            ObjectClosure* closure = (ObjectClosure*)object;
-            FREE_ARRAY(ObjectUpvalue*, closure->upvalues, closure->upvalueCount);
             FREE(ObjectClosure, object);
             break;
         }
@@ -153,8 +155,6 @@ static void freeObject(Object* object) {
             FREE(ObjectNative, object);
             break;
         case OBJECT_STRING: {
-            ObjectString* string = (ObjectString*)object;
-            FREE_ARRAY(char, string->chars, string->length + 1);
             FREE(ObjectString, object);
             break;
         }

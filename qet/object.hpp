@@ -32,7 +32,7 @@
 #define AS_STRING(value) ((ObjectString*)value.as_object())
 #define AS_CSTRING(value) (((ObjectString*)value.as_object())->chars)
 
-#define E \
+#define ENUMERATE_X_OBJECT \
     X(BOUND_METHOD)\
     X(CLASS)\
     X(CLOSURE)\
@@ -43,14 +43,13 @@
     X(UPVALUE)\
 
 #define X(Z) OBJECT_##Z,
-enum ObjectType { E };
+enum ObjectType { ENUMERATE_X_OBJECT };
 #undef X
 
 #define X(Z) [OBJECT_##Z] = "OBJECT_" #Z,
-constexpr const char* ObjectTypeCString[] = { E };
+constexpr const char* ObjectTypeCString[] = { ENUMERATE_X_OBJECT };
 #undef X
 
-#undef E
 
 struct Object {
     
@@ -60,12 +59,15 @@ struct Object {
     
     // Variant
     
-    ObjectType type;
+    ObjectType type; // 4
     
     // Garbage collection
     
-    bool isMarked;
-    Object* next;
+    bool isMarked;   // 1
+                     // padding 3
+    Object* next;    // 8
+
+    // TODO: tagged pointer would save nothing given the type
     
 };
 

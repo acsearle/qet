@@ -8,7 +8,7 @@
 #ifndef scanner_hpp
 #define scanner_hpp
 
-#define E \
+#define ENUMERATE_X_TOKEN \
     X(LEFT_PAREN)\
     X(RIGHT_PAREN)\
     X(LEFT_BRACE)\
@@ -51,14 +51,12 @@
     X(EOF)\
 
 #define X(Z) TOKEN_##Z,
-enum TokenType { E };
+enum TokenType { ENUMERATE_X_TOKEN };
 #undef X
 
 #define X(Z) [TOKEN_##Z] = "TOKEN_" #Z,
-constexpr const char* TokenTypeCString[] = { E };
+constexpr const char* TokenTypeCString[] = { ENUMERATE_X_TOKEN };
 #undef X
-
-#undef E
 
 struct Token {
     TokenType type;

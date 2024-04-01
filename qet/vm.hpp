@@ -15,14 +15,11 @@
 struct GC {
     Table strings;
     ObjectString* initString;
-    
     size_t bytesAllocated;
     size_t nextGC;
-    Object* objects;
-    int grayCount;
-    int grayCapacity;
-    Object** grayStack;
     
+    Object* objects;
+    std::vector<Object*> grayStack;
     std::vector<Value> roots;
 };
 

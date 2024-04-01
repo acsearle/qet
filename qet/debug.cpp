@@ -2,6 +2,7 @@
 
 #include "debug.hpp"
 #include "object.hpp"
+#include "opcodes.hpp"
 #include "value.hpp"
 
 static ptrdiff_t simpleInstruction(Chunk* chunk, ptrdiff_t offset) {

@@ -15,6 +15,7 @@
 #include "debug.hpp"
 #include "memory.hpp"
 #include "object.hpp"
+#include "opcodes.hpp"
 #include "vm.hpp"
 
 VM vm;
@@ -74,9 +75,6 @@ void initGC() {
     gc.objects = NULL;
     gc.bytesAllocated = 0;
     gc.nextGC = 1024 * 1024;
-    gc.grayCount = 0;
-    gc.grayCapacity = 0;
-    gc.grayStack = NULL;
     initTable(&gc.strings);
     gc.initString = NULL;
     gc.initString = copyString("init", 4);

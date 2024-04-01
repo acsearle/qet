@@ -50,7 +50,7 @@ ObjectClass* newClass(ObjectString* name) {
 
 ObjectClosure* newClosure(ObjectFunction* function) {
     ObjectUpvalue** upvalues = ALLOCATE(ObjectUpvalue*, 
-                                     function->upvalueCount);
+                                        function->upvalueCount);
     for (int i = 0; i < function->upvalueCount; i++) {
         upvalues[i] = NULL;
     }

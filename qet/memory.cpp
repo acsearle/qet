@@ -47,14 +47,7 @@ void markObject(Object* object) {
 #endif
     object->isMarked = true;
     
-    if (gc.grayCapacity < gc.grayCount + 1) {
-        gc.grayCapacity = GROW_CAPACITY(gc.grayCapacity);
-        gc.grayStack = (Object**)realloc(gc.grayStack,
-                                      sizeof(Object*) * gc.grayCapacity);
-        if (gc.grayStack == NULL) exit(1);
-    }
-    
-    gc.grayStack[gc.grayCount++] = object;
+    gc.grayStack.push_back(object);
 }
 
 void markValue(Value value) {
@@ -196,8 +189,9 @@ static void markRoots() {
 }
 
 static void traceReferences() {
-    while (gc.grayCount) {
-        Object* object = gc.grayStack[--gc.grayCount];
+    while (!gc.grayStack.empty()) {
+        Object* object = gc.grayStack.back();
+        gc.grayStack.pop_back();
         blackenObject(object);
     }
 }
@@ -257,5 +251,5 @@ void freeObjects() {
         freeObject(object);
         object = next;
     }
-    free(gc.grayStack);
+    gc.grayStack.clear();
 }

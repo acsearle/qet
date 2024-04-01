@@ -2,11 +2,10 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "common.hpp"
 #include "chunk.hpp"
+#include "common.hpp"
 #include "debug.hpp"
 #include "vm.hpp"
-
 
 static void repl() {
     char line[1024];
@@ -16,6 +15,7 @@ static void repl() {
             printf("\n");
             break;
         }
+        // TODO: gracefully handle structures spanning multiple lines
         interpret(line);
     }
 }

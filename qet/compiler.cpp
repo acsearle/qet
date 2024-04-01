@@ -11,6 +11,7 @@
 
 #include "common.hpp"
 #include "compiler.hpp"
+#include "opcodes.hpp"
 #include "memory.hpp"
 #include "scanner.hpp"
 

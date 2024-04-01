@@ -12,23 +12,22 @@
 
 #include "common.hpp"
 
-struct Object;
-
-#define E \
+#define ENUMERATE_X_VALUE \
     X(NIL)\
     X(BOOL)\
     X(INT64)\
     X(OBJECT)\
 
 #define X(Z) VALUE_##Z,
-enum ValueType { E };
+enum ValueType { ENUMERATE_X_VALUE };
 #undef X
 
 #define X(Z) [VALUE_##Z] = "VALUE_" #Z,
-constexpr const char* valueTypeCString[] { E };
+constexpr const char* ValueTypeCString[] { ENUMERATE_X_VALUE };
 #undef X
 
-#undef E
+
+struct Object;
 
 struct Value {
     

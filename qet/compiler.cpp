@@ -54,6 +54,8 @@ namespace {
     };
     
     struct Compiler;
+    
+    std::vector<Compiler*> compilers_that_are_roots;
         
     using ParseFn = void (Compiler::*)(bool canAssign);
     
@@ -119,8 +121,9 @@ namespace {
         
         
         void namedVariable(Token name, bool canAssign);
-        
-        
+                
+        uint8_t argumentList();
+
         void and_(bool canAssign);
         void binary(bool canAssign);
         void call(bool canAssign);
@@ -295,11 +298,11 @@ namespace {
         compiler->function = new(0) ObjectFunction();
         current = compiler;
         if (type != TYPE_SCRIPT) {
-            current->function->name = copyString(parser.previous.start,
+            compiler->function->name = copyString(parser.previous.start,
                                                  parser.previous.length);
         }
         
-        Local* local = &current->locals[current->localCount++];
+        Local* local = &compiler->locals[compiler->localCount++];
         local->depth = 0;
         local->isCaptured = false;
         if (type != TYPE_FUNCTION) {
@@ -311,16 +314,16 @@ namespace {
         }
     }
     
-    ObjectFunction* endCompiler() {
-        current->emitReturn();
-        ObjectFunction* function = current->function;
+    ObjectFunction* endCompiler(Compiler* compiler) {
+        assert(current == compiler);
+        compiler->emitReturn();
+        ObjectFunction* function = compiler->function;
         
 #ifdef DEBUG_PRINT_CODE
         if (!parser.hadError) {
-            disassembleChunk(current->chunk(), function->name != NULL ? function->name->chars : "<script>");
+            disassembleChunk(compiler->chunk(), function->name != NULL ? function->name->chars : "<script>");
         }
 #endif
-        
         current = current->enclosing;
         return function;
     }
@@ -454,11 +457,11 @@ namespace {
         emitBytes(OPCODE_DEFINE_GLOBAL, global);
     }
     
-    uint8_t argumentList() {
+    uint8_t Compiler::argumentList() {
         uint8_t argCount = 0;
         if (!parser.check(TOKEN_RIGHT_PAREN)) {
             do {
-                current->expression();
+                expression();
                 argCount++;
                 if (argCount == 255) {
                     parser.error("Can't have more than 255 arguments.");
@@ -632,25 +635,25 @@ namespace {
     void Compiler::functionDefinition(FunctionType type) {
         Compiler compiler;
         initCompiler(&compiler, type);
-        current->beginScope();
+        compiler.beginScope();
         
         parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
         if (!parser.check(TOKEN_RIGHT_PAREN)) {
             do {
-                current->function->arity++;
-                if (current->function->arity > 255) {
+                compiler.function->arity++;
+                if (compiler.function->arity > 255) {
                     parser.errorAtCurrent("Can't have more than 255 parameters.");
                 }
-                uint8_t constant = current->parseVariable("Expect parameter name.");
-                current->defineVariable(constant);
+                uint8_t constant = compiler.parseVariable("Expect parameter name.");
+                compiler.defineVariable(constant);
             } while (parser.match(TOKEN_COMMA));
         }
         parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
         parser.consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
-        current->block();
+        compiler.block();
         
-        ObjectFunction* function = endCompiler();
-        emitBytes(OPCODE_CLOSURE, current->makeConstant(Value(function)));
+        ObjectFunction* function = endCompiler(&compiler);
+        emitBytes(OPCODE_CLOSURE, makeConstant(Value(function)));
         
         for (int i = 0; i < function->upvalueCount; i++) {
             emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
@@ -995,9 +998,9 @@ ObjectFunction* compile(const char* source) {
     
     parser.advance();
     while (!parser.match(TOKEN_EOF)) {
-        current->declaration();
+        compiler.declaration();
     }
-    ObjectFunction* function = endCompiler();
+    ObjectFunction* function = endCompiler(&compiler);
     return parser.hadError ? NULL : function;
 }
 

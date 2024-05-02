@@ -12,13 +12,19 @@
 
 #include "common.hpp"
 #include "value.hpp"
+struct ObjectRaw;
+
+// Chunks exist solely as fields of ObjectFunctions
 
 struct Chunk {
+    
     std::vector<uint8_t> code;
     std::vector<int> lines;
     std::vector<Value> constants;
+    
     void write(uint8_t byte, int line);
-    size_t add_constant(Value value);    
+    size_t add_constant(Value value);
+    
 }; // struct Chunk
 
 #endif /* chunk_hpp */

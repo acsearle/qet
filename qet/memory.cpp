@@ -56,9 +56,6 @@ void markValue(Value value) {
 }
 
 static void markArray(std::vector<Value>* array) {
-    // for (int i = 0; i < array->count; i++) {
-    //    markValue(array->values[i]);
-    // }
     for (Value value : *array)
         markValue(value);
 }
@@ -106,6 +103,9 @@ static void blackenObject(Object* object) {
         case OBJECT_NATIVE: {
             break;
         }
+        case OBJECT_RAW: {
+            break;
+        }
         case OBJECT_STRING: {
             break;
         }
@@ -126,36 +126,48 @@ static void freeObject(Object* object) {
     // conventionally
 
     switch (object->type) {
-        case OBJECT_BOUND_METHOD:
-            FREE(ObjectBoundMethod, object);
+            
+        case OBJECT_BOUND_METHOD: {
+            ObjectBoundMethod* method = (ObjectBoundMethod*)object;
+            reallocate(method, sizeof(ObjectBoundMethod), 0);
             break;
+        }
         case OBJECT_CLASS: {
             ObjectClass* class_ = (ObjectClass*)object;
             freeTable(&class_->methods);
-            FREE(OBJECT_CLASS, object);
+            reallocate(class_, sizeof(ObjectClass), 0);
             break;
         }
         case OBJECT_CLOSURE: {
-            FREE(ObjectClosure, object);
+            ObjectClosure* closure = (ObjectClosure*)object;
+            reallocate(closure, sizeof(ObjectClosure) + closure->upvalueCount * sizeof(ObjectUpvalue*), 0);
             break;
         }
         case OBJECT_FUNCTION: {
             ObjectFunction* function = (ObjectFunction*)object;
             std::destroy_at(&function->chunk);
-            FREE(ObjectFunction, object);
+            reallocate(function, sizeof(ObjectFunction), 0);
             break;
         }
         case OBJECT_INSTANCE: {
             ObjectInstance* instance = (ObjectInstance*)object;
             freeTable(&instance->fields);
-            FREE(ObjectInstance, object);
+            reallocate(instance, sizeof(ObjectInstance), 0);
             break;
         }
-        case OBJECT_NATIVE:
-            FREE(ObjectNative, object);
+        case OBJECT_NATIVE: {
+            ObjectNative* native = (ObjectNative*)object;
+            reallocate(native, sizeof(ObjectNative), 0);
             break;
+        }
+        case OBJECT_RAW: {
+            ObjectRaw* raw = (ObjectRaw*)object;
+            reallocate(raw, sizeof(ObjectRaw) /* + ? */, 0); assert(false);
+            break;
+        }
         case OBJECT_STRING: {
-            FREE(ObjectString, object);
+            ObjectString* string = (ObjectString*)object;
+            reallocate(string, sizeof(ObjectString) + string->length + 1, 0);
             break;
         }
         case OBJECT_UPVALUE:

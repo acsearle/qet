@@ -12,6 +12,8 @@
 #include "chunk.hpp"
 #include "table.hpp"
 #include "value.hpp"
+//#include "array.hpp"
+#include "memory.hpp"
 
 struct Object;
 
@@ -86,7 +88,19 @@ struct Object {
     
     explicit Object(ObjectType type);
     
+    static void* operator new(size_t count, int extra) {
+        return reallocate(nullptr, 0, count + extra);
+    }
+    static void operator delete(void* ptr, size_t count) {
+        reallocate(ptr, count, 0);
+    }
+    
 };
+
+//template<typename T>
+//struct ObjectArray : Object {
+//    Array<T> array;
+//};
 
 struct ObjectBoundMethod : Object {
     ObjectBoundMethod(Value receiver, ObjectClosure* method);
@@ -105,9 +119,6 @@ struct ObjectClosure final : Object {
     int upvalueCount;
     ObjectUpvalue* upvalues[];  // flexible array member
     explicit ObjectClosure(ObjectFunction* function);
-    static void* operator new(size_t count, int upvalueCount) {
-        return ::operator new(count + upvalueCount * sizeof(ObjectUpvalue*));
-    }
 };
 
 
@@ -139,12 +150,10 @@ struct ObjectRaw : Object {
 
 struct ObjectString final : Object {
     uint32_t hash;
-    size_t length;
-    char chars[]; // flexible array member
-    ObjectString(uint32_t hash, size_t length, const char* chars);
-    static void* operator new(size_t count, size_t length) {
-        return ::operator new(count + length + 1);
-    }
+    uint32_t length;
+    char chars[0]; // flexible array member
+    explicit ObjectString(uint32_t length);
+    ObjectString(uint32_t hash, uint32_t length, const char* chars);
 };
 
 ObjectString* takeString(char* chars, int length);

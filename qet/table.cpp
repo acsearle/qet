@@ -16,10 +16,6 @@
 
 #define TABLE_MAX_LOAD 0.75
 
-#define GROW_CAPACITY(capacity) \
-    ((capacity) < 8 ? 8 : capacity * 2)
-
-
 void initTable(Table* table) {
     table->count = 0;
     table->capacity = 0;
@@ -27,7 +23,7 @@ void initTable(Table* table) {
 }
 
 void freeTable(Table* table) {
-    FREE_ARRAY(Entry, table->entries, table->capacity);
+    reallocate(table->entries, table->capacity * sizeof(Entry), 0);
     initTable(table);
 }
 
@@ -91,7 +87,7 @@ static void adjustCapacity(Table* table, int capacity) {
         table->count++;
     }
     
-    FREE_ARRAY(Entry, table->entries, table->capacity);
+    reallocate(table->entries, table->capacity * sizeof(Entry), 0);
     table->entries = entries;
     table->capacity = capacity;
 }

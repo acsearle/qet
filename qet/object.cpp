@@ -88,13 +88,17 @@ ObjectUpvalue::ObjectUpvalue(Value* slot)
 , next(nullptr) {
 }
 
-ObjectString::ObjectString(uint32_t hash, size_t length, const char* chars)
+ObjectString::ObjectString(uint32_t length)
+: Object(OBJECT_STRING)
+, length(length) {
+}
+
+ObjectString::ObjectString(uint32_t hash, uint32_t length, const char* chars)
 : Object(OBJECT_STRING)
 , hash(hash)
 , length(length) {
     memcpy(this->chars, chars, length);
     this->chars[length] = '\0';
-    // printf("Made {%08x %zd \"%.*s\"}\n", hash, length, (int) length, chars);
     gc.roots.push_back(Value(this));
     tableSet(&gc.strings, this, Value());
     gc.roots.pop_back();
@@ -114,9 +118,9 @@ ObjectString* takeString(char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
     if (interned == nullptr) {
-        interned = new(length) ObjectString(hash, length, chars);
+        interned = new(length + 1) ObjectString(hash, length, chars);
     }
-    FREE_ARRAY(char, chars, length + 1);
+    reallocate(chars, length + 1, 0);
     return interned;
 }
 
@@ -124,7 +128,7 @@ ObjectString* copyString(const char* chars, int length) {
     uint32_t hash = hashString(chars, length);
     ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
     if (interned == nullptr) {
-        interned = new(length) ObjectString(hash, length, chars);
+        interned = new(length + 1) ObjectString(hash, length, chars);
     }
     return interned;
 }
@@ -156,6 +160,9 @@ void printObject(Value value) {
             break;
         case OBJECT_NATIVE:
             printf("<native fn>");
+            break;
+        case OBJECT_RAW:
+            printf("<raw buffer>");
             break;
         case OBJECT_STRING:
             printf("%s", AS_CSTRING(value));

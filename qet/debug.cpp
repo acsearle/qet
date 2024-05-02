@@ -6,60 +6,53 @@
 #include "value.hpp"
 
 static ptrdiff_t simpleInstruction(Chunk* chunk, ptrdiff_t offset) {
-    const char* name = OpCodeCString[chunk->code[offset]];
-    printf("%-16s\n", name);
+    printf("\n");
     return offset + 1;
 }
 
 ptrdiff_t constantInstruction(Chunk* chunk, ptrdiff_t offset) {
-    const char* name = OpCodeCString[chunk->code[offset]];
     uint8_t constant = chunk->code[offset + 1];
-    printf("%-16s %4d '", name, constant);
+    printf("%4d '", constant);
     printValue(chunk->constants[constant]);
     printf("'\n");
     return offset + 2;
 }
 
 ptrdiff_t invokeInstruction(Chunk* chunk, ptrdiff_t offset) {
-    const char* name = OpCodeCString[chunk->code[offset]];
     uint8_t constant = chunk->code[offset + 1];
     uint8_t argCount = chunk->code[offset + 2];
-    printf("%-16s (%d args) %4d '", name, argCount, constant);
+    printf("(%d args) %4d '", argCount, constant);
     printValue(chunk->constants[constant]);
     printf("'\n");
     return offset + 3;
 }
 
 ptrdiff_t byteInstruction(Chunk* chunk, ptrdiff_t offset) {
-    const char* name = OpCodeCString[chunk->code[offset]];
     uint8_t slot = chunk->code[offset + 1];
-    printf("%-16s %4d\n", name, slot);
+    printf("%4d\n", slot);
     return offset + 2;
 }
 
 ptrdiff_t jumpInstruction(Chunk* chunk, ptrdiff_t offset) {
     int sign = 1;
-    const char* name = OpCodeCString[chunk->code[offset]];
     uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
-    printf("%-16s %4ld -> %ld\n", name, offset, offset + 3 + sign * jump);
+    printf("%4ld -> %ld\n", offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
 ptrdiff_t loopInstruction(Chunk* chunk, ptrdiff_t offset) {
     int sign = -1;
-    const char* name = OpCodeCString[chunk->code[offset]];
     uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
-    printf("%-16s %4ld -> %ld\n", name, offset, offset + 3 + sign * jump);
+    printf("%4ld -> %ld\n", offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
 ptrdiff_t closureInstruction(Chunk* chunk, ptrdiff_t offset) {
-    const char* name = OpCodeCString[chunk->code[offset]];
     offset++;
     uint8_t constant =  chunk->code[offset++];
-    printf("%-16s %4d ", name, constant);
+    printf("%4d ", constant);
     printValue(chunk->constants[constant]);
     printf("\n");
     
@@ -128,6 +121,8 @@ ptrdiff_t disassembleInstruction(Chunk* chunk, ptrdiff_t offset) {
     uint8_t instruction = chunk->code[offset];
     disassembleFunctionType fp = disassembleFunctionTable[instruction];
     if (fp != nullptr) {
+        const char* name = OpCodeCString[chunk->code[offset]];
+        printf("%-16s ", name);
         return fp(chunk, offset);
     } else {
         printf("Unknown opcode %d\n", (int) instruction);

@@ -74,9 +74,9 @@ namespace lox {
     }
     
     void initGC() {
-        gc.objects = NULL;
-        gc.bytesAllocated = 0;
-        gc.nextGC = 1024 * 1024;
+        //gc.objects = NULL;
+        //gc.bytesAllocated = 0;
+        //gc.nextGC = 1024 * 1024;
         initTable(&gc.strings);
         gc.initString = NULL;
         gc.initString = copyString("init", 4);
@@ -90,8 +90,8 @@ namespace lox {
     void freeGC() {
         freeTable(&gc.strings);
         gc.initString = NULL;
-        freeObjects();
-        initGC();
+        //freeObjects();
+        initGC(); // oddly this makes a new initString
     }
     
     void push(Value value) {

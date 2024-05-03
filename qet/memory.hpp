@@ -24,10 +24,13 @@ namespace lox {
     struct Object;
     
     void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+    
+    /*
     void markObject(Object* object);
     void markValue(Value value);
     void collectGarbage();
     void freeObjects();
+     */
     
 }
 

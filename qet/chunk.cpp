@@ -17,9 +17,9 @@ namespace lox {
     }
     
     size_t Chunk::add_constant(Value value) {
-        gc.roots.push_back(value);
+        //gc.roots.push_back(value);
         constants.push_back(value);
-        gc.roots.pop_back();
+        //gc.roots.pop_back();
         return constants.size() - 1;
     }
     

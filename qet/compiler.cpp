@@ -1013,6 +1013,7 @@ namespace lox {
         return parser.hadError ? NULL : function;
     }
     
+    /*
     void markCompilerRoots() {
         //Compiler* compiler = current;
         //while (compiler != NULL) {
@@ -1023,5 +1024,6 @@ namespace lox {
             markObject(compiler->function);
         }
     }
+     */
     
 } // namespace lox

@@ -18,9 +18,9 @@ namespace lox {
     
     Object::Object(ObjectType type) {
         this->type = type;
-        isMarked = false;
-        next = gc.objects;
-        gc.objects = this;
+        //isMarked = false;
+        //next = gc.objects;
+        //gc.objects = this;
     }
     
     
@@ -81,9 +81,9 @@ namespace lox {
     , length(length) {
         memcpy(this->chars, chars, length);
         this->chars[length] = '\0';
-        gc.roots.push_back(Value(this));
+        //gc.roots.push_back(Value(this));
         tableSet(&gc.strings, this, Value());
-        gc.roots.pop_back();
+        //gc.roots.pop_back();
     }
     
     static uint32_t hashString(const char* key, int length) {

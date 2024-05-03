@@ -21,13 +21,13 @@
 namespace lox {
     
     void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
-        gc.bytesAllocated += (newSize - oldSize);
+        // gc.bytesAllocated += (newSize - oldSize);
         if (newSize > oldSize
 #ifndef LOX_DEBUG_STRESS_GC
             && gc.bytesAllocated > gc.nextGC
 #endif
             ) {
-            collectGarbage();
+            // collectGarbage();
         }
         if (newSize == 0) {
             free(pointer);
@@ -39,6 +39,7 @@ namespace lox {
         return result;
     }
     
+    /*
     void markObject(Object* object) {
         if (object == NULL) return;
         if (object->isMarked) return;
@@ -164,7 +165,7 @@ namespace lox {
             }
             case OBJECT_RAW: {
                 ObjectRaw* raw = (ObjectRaw*)object;
-                reallocate(raw, sizeof(ObjectRaw) /* + ? */, 0); assert(false);
+                reallocate(raw, sizeof(ObjectRaw), 0); assert(false);
                 break;
             }
             case OBJECT_STRING: {
@@ -267,5 +268,7 @@ namespace lox {
         }
         gc.grayStack.clear();
     }
+     
+     */
     
 } // namespace lox

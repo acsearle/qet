@@ -8,6 +8,8 @@
 #ifndef scanner_hpp
 #define scanner_hpp
 
+namespace lox {
+    
 #define ENUMERATE_X_TOKEN \
     X(LEFT_PAREN)\
     X(RIGHT_PAREN)\
@@ -51,21 +53,23 @@
     X(EOF)\
 
 #define X(Z) TOKEN_##Z,
-enum TokenType { ENUMERATE_X_TOKEN };
+    enum TokenType { ENUMERATE_X_TOKEN };
 #undef X
-
+    
 #define X(Z) [TOKEN_##Z] = "TOKEN_" #Z,
-constexpr const char* TokenTypeCString[] = { ENUMERATE_X_TOKEN };
+    constexpr const char* TokenTypeCString[] = { ENUMERATE_X_TOKEN };
 #undef X
-
-struct Token {
-    TokenType type;
-    const char* start;
-    int length;
-    int line;
-};
-
-void initScanner(const char* source);
-Token scanToken();
+    
+    struct Token {
+        TokenType type;
+        const char* start;
+        int length;
+        int line;
+    };
+    
+    void initScanner(const char* source);
+    Token scanToken();
+    
+} // namespace lox
 
 #endif /* scanner_hpp */

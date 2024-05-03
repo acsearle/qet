@@ -18,13 +18,17 @@
 #define GROW_CAPACITY(capacity) \
     ((capacity) < 8 ? 8 : capacity * 2)
 
-struct Value;
-struct Object;
-
-void* reallocate(void* pointer, size_t oldSize, size_t newSize);
-void markObject(Object* object);
-void markValue(Value value);
-void collectGarbage();
-void freeObjects();
+namespace lox {
+    
+    struct Value;
+    struct Object;
+    
+    void* reallocate(void* pointer, size_t oldSize, size_t newSize);
+    void markObject(Object* object);
+    void markValue(Value value);
+    void collectGarbage();
+    void freeObjects();
+    
+}
 
 #endif /* memory_hpp */

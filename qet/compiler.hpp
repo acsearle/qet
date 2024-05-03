@@ -11,7 +11,11 @@
 #include "object.hpp"
 #include "vm.hpp"
 
-ObjectFunction* compile(const char* source);
-void markCompilerRoots();
+namespace lox {
+    
+    ObjectFunction* compile(const char* source);
+    void markCompilerRoots();
+    
+}
 
 #endif /* compiler_hpp */

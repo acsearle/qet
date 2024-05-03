@@ -6,3 +6,7 @@
 //
 
 #include "array.hpp"
+
+namespace lox {
+    
+} // namespace lox

@@ -10,6 +10,8 @@
 
 #include <cstdint>
 
+namespace lox {
+    
 #define ENUMERATEX_OPCODES \
     X(CONSTANT)\
     X(NIL)\
@@ -50,11 +52,13 @@
     X(METHOD)\
 
 #define X(Z) OPCODE_##Z,
-enum OpCode : uint8_t { ENUMERATEX_OPCODES };
+    enum OpCode : uint8_t { ENUMERATEX_OPCODES };
 #undef X
-
+    
 #define X(Z) [OPCODE_##Z] = "OPCODE_" #Z,
-constexpr const char* OpCodeCString[] = { ENUMERATEX_OPCODES };
+    constexpr const char* OpCodeCString[] = { ENUMERATEX_OPCODES };
 #undef X
-
+    
+} // namespace lox
+    
 #endif /* opcodes_hpp */

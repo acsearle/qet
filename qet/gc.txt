@@ -1,0 +1,33 @@
+Notes on garbage collection
+
+We use somethimng like Doligez-Leroy-Gonthier collection (The Gargbage
+Collection Handbook 16.5)
+
+Collection is handled by a dedicated thread.
+
+Mutators are never interrupted by collection, but they must execute a write
+barrier when mutating graph edges, and they must periodically execute a soft
+handshake.
+
+Objects must maintain an atomic color field, and all their member pointers that
+are part of the graph must be atomic (or immutable) so that the GC can read
+them, and writes to those fields must be RELEASE so that the GC can follow them.
+
+Only pointers that will be shared between objects need to be part of the object
+graph; objects may have private structure that they clean up conventionally.
+Destructors will be run by the collector, but they must not follow graph edges.
+They should be used to clean up non-GC resources (such as a member std::vector)
+or a FILE*.
+
+The collector maintains a list of all objects, and sweeps this list, rather
+than sweeping a heap by address.
+
+GC objects all inherit from a common base class that provides
+- correct initialization of color
+- virtual shade, WHITE -> GRAY, used by the mutator
+  - for leaf nodes, WHITE -> BLACK
+- virtual scan, used by the collector to enumerate the fields
+- virtual sweep, used by the collector to reclaim WHITE objects
+- virtual destructor, invoked by sweep to clean up non-GC resources
+
+

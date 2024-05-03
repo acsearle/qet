@@ -58,7 +58,10 @@ namespace lox {
         printValue(chunk->constants[constant]);
         printf("\n");
         
-        ObjectFunction* function = AS_FUNCTION(chunk->constants[constant]);
+        ObjectFunction* function = 
+            // AS_FUNCTION(chunk->constants[constant]);
+            dynamic_cast<ObjectFunction*>(chunk->constants[constant].as_object());
+        assert(function);
         for (int j = 0; j < function->upvalueCount; j++) {
             int isLocal = chunk->code[offset++];
             int index = chunk->code[offset++];

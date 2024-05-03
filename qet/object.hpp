@@ -30,6 +30,10 @@ namespace lox {
     
     using NativeFn = Value (*)(int argCount, Value* args);
     
+    // TODO: for sanity, mapping object type enum back to virtual functions
+    // but, this may be a pessimization
+    
+    /*
 #define OBJECT_TYPE(value) (value.as_object()->type)
     
 #define IS_BOUND_METHOD(value) isObjectType(value, OBJECT_BOUND_METHOD)
@@ -39,6 +43,16 @@ namespace lox {
 #define IS_INSTANCE(value) isObjectType(value, OBJECT_INSTANCE)
 #define IS_NATIVE(value) isObjectType(value, OBJECT_NATIVE)
 #define IS_STRING(value) isObjectType(value, OBJECT_STRING)
+*/
+
+#define IS_BOUND_METHOD(value) (reinterpret_cast<ObjectBoundMethod*>(value.as_object()))
+#define IS_CLASS(value) (reinterpret_cast<ObjectClass*>(value.as_object()))
+#define IS_CLOSURE(value) (reinterpret_cast<ObjectClosure*>(value.as_object()))
+#define IS_FUNCTION(value) (reinterpret_cast<ObjectFunction*>(value.as_object()))
+#define IS_INSTANCE(value) (reinterpret_cast<ObjectInstance*>(value.as_object()))
+#define IS_NATIVE(value) (reinterpret_cast<ObjectNative*>(value.as_object()))
+#define IS_STRING(value) (reinterpret_cast<ObjectString*>(value.as_object()))
+    
     
 #define AS_BOUND_METHOD(value) ((ObjectBoundMethod*)value.as_object())
 #define AS_CLASS(value) ((ObjectClass*)value.as_object())
@@ -48,6 +62,7 @@ namespace lox {
 #define AS_NATIVE(value) (((ObjectNative*)value.as_object())->function)
 #define AS_STRING(value) ((ObjectString*)value.as_object())
 #define AS_CSTRING(value) (((ObjectString*)value.as_object())->chars)
+    /*
     
 #define ENUMERATE_X_OBJECT \
 X(BOUND_METHOD)\
@@ -67,29 +82,15 @@ X(UPVALUE)\
 #define X(Z) [OBJECT_##Z] = "OBJECT_" #Z,
     constexpr const char* ObjectTypeCString[] = { ENUMERATE_X_OBJECT };
 #undef X
+     */
     
     struct Object {
-        
-        // TODO: Object conflates two responsibilities, being a variant, and being GC
-        // The variant could live in the Value, and we would pass around Value as a
-        // fatter pointer
-        
-        // If we abandon finalizers, we can do without the type?
-        
-        // Variant
-        
-        ObjectType type; // 4
-        
-        // Garbage collection
-        
-        bool isMarked;   // 1
-                         // padding 3
-        Object* next;    // 8
-        
-        // TODO: tagged pointer would save nothing given the type
-        
-        explicit Object(ObjectType type);
-        
+                
+        // explicit Object(ObjectType type);
+        virtual ~Object() = default;
+        virtual void printObject() = 0;
+        virtual bool callObject(int argCount);
+
         static void* operator new(size_t count, int extra) {
             return reallocate(nullptr, 0, count + extra);
         }
@@ -106,17 +107,23 @@ X(UPVALUE)\
     
     struct ObjectBoundMethod : Object {
         ObjectBoundMethod(Value receiver, ObjectClosure* method);
+        virtual void printObject();
+        virtual bool callObject(int argCount);
         Value receiver;
         ObjectClosure* method;
     };
     
     struct ObjectClass : Object {
         explicit ObjectClass(ObjectString* name);
+        virtual void printObject();
+        virtual bool callObject(int argCount);
         ObjectString* name;
         Table methods;
     };
     
-    struct ObjectClosure final : Object {
+    struct ObjectClosure : Object {
+        virtual void printObject();
+        virtual bool callObject(int argCount);
         ObjectFunction* function;
         int upvalueCount;
         ObjectUpvalue* upvalues[];  // flexible array member
@@ -125,6 +132,7 @@ X(UPVALUE)\
     
     
     struct ObjectFunction : Object {
+        virtual void printObject();
         int arity;
         int upvalueCount;
         Chunk chunk;
@@ -133,17 +141,21 @@ X(UPVALUE)\
     };
     
     struct ObjectInstance : Object {
+        virtual void printObject();
         ObjectClass* class_;
         Table fields;
         explicit ObjectInstance(ObjectClass* class_);
     };
     
     struct ObjectNative : Object {
+        virtual void printObject();
+        virtual bool callObject(int argCount);
         NativeFn function;
         explicit ObjectNative(NativeFn function);
     };
     
     struct ObjectRaw : Object {
+        virtual void printObject();
         unsigned char bytes[];
         static void* operator new(size_t count, size_t extra) {
             return :: operator new(count + extra);
@@ -151,6 +163,7 @@ X(UPVALUE)\
     };
     
     struct ObjectString final : Object {
+        virtual void printObject();
         uint32_t hash;
         uint32_t length;
         char chars[0]; // flexible array member
@@ -162,6 +175,7 @@ X(UPVALUE)\
     ObjectString* copyString(const char* chars, int length);
     
     struct ObjectUpvalue : Object {
+        virtual void printObject();
         Value* location;
         Value closed;
         ObjectUpvalue* next;
@@ -170,9 +184,9 @@ X(UPVALUE)\
     
     void printObject(Value value);
     
-    inline bool isObjectType(Value value, ObjectType type) {
-        return value.is_object() && value.as_object()->type == type;
-    }
+    //inline bool isObjectType(Value value, ObjectType type) {
+    //    return value.is_object() && value.as_object()->type == type;
+    //}
     
 } // namespacxe lox
     

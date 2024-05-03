@@ -64,7 +64,7 @@ X(OBJECT)\
         
         bool     as_bool()    const { assert(is_bool());    return (bool) as.int64; }
         int64_t  as_int64()   const { assert(is_int64());   return as.int64; }
-        Object*     as_object()     const { assert(is_object());     return as.object; }
+        Object*     as_object()     const { return is_object() ? as.object : nullptr; }
         
     };
     

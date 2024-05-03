@@ -16,68 +16,61 @@
 
 namespace lox {
     
+    /*
     Object::Object(ObjectType type) {
         this->type = type;
-        //isMarked = false;
-        //next = gc.objects;
-        //gc.objects = this;
+        isMarked = false;
+        next = gc.objects;
+        gc.objects = this;
     }
+     */
     
     
     ObjectBoundMethod::ObjectBoundMethod(Value receiver,
                                          ObjectClosure* method)
-    : Object(OBJECT_BOUND_METHOD)
-    , receiver(receiver)
+    : receiver(receiver)
     , method(method) {
     }
     
     ObjectClass::ObjectClass(ObjectString* name)
-    : Object(OBJECT_CLASS)
-    , name(name) {
+    : name(name) {
         initTable(&methods);
     }
     
     ObjectClosure::ObjectClosure(ObjectFunction* function)
-    : Object(OBJECT_CLOSURE)
-    , function(function)
+    : function(function)
     , upvalueCount(function->upvalueCount) {
         for (int i = 0; i < upvalueCount; i++)
             upvalues[i] = nullptr;
     }
     
-    ObjectInstance::ObjectInstance(ObjectClass* class_)
-    : Object(OBJECT_INSTANCE) {
+    ObjectInstance::ObjectInstance(ObjectClass* class_) {
         this->class_ = class_;
         initTable(&fields);
     }
     
     ObjectFunction::ObjectFunction()
-    : Object(OBJECT_FUNCTION)
-    , arity(0)
+    : arity(0)
     , upvalueCount(0)
     , name(nullptr) {
     }
     
     ObjectNative::ObjectNative(NativeFn function)
-    : Object(OBJECT_NATIVE)
-    , function(function) {
+    : function(function) {
     }
     
     ObjectUpvalue::ObjectUpvalue(Value* slot)
-    : Object(OBJECT_UPVALUE)
-    , closed(Value())
+    : closed(Value())
     , location(slot)
     , next(nullptr) {
     }
     
     ObjectString::ObjectString(uint32_t length)
-    : Object(OBJECT_STRING)
-    , length(length) {
+    : length(length) {
     }
     
     ObjectString::ObjectString(uint32_t hash, uint32_t length, const char* chars)
-    : Object(OBJECT_STRING)
-    , hash(hash)
+    : hash(hash)
     , length(length) {
         memcpy(this->chars, chars, length);
         this->chars[length] = '\0';
@@ -124,35 +117,44 @@ namespace lox {
     }
     
     void printObject(Value value) {
-        switch (OBJECT_TYPE(value)) {
-            case OBJECT_BOUND_METHOD:
-                printFunction(AS_BOUND_METHOD(value)->method->function);
-                break;
-            case OBJECT_CLASS:
-                printf("%s", AS_CLASS(value)->name->chars);
-                break;
-            case OBJECT_CLOSURE:
-                printFunction(AS_CLOSURE(value)->function);
-                break;
-            case OBJECT_FUNCTION:
-                printFunction(AS_FUNCTION(value));
-                break;
-            case OBJECT_INSTANCE:
-                printf("%s instance", AS_INSTANCE(value)->class_->name->chars);
-                break;
-            case OBJECT_NATIVE:
-                printf("<native fn>");
-                break;
-            case OBJECT_RAW:
-                printf("<raw buffer>");
-                break;
-            case OBJECT_STRING:
-                printf("%s", AS_CSTRING(value));
-                break;
-            case OBJECT_UPVALUE:
-                printf("upvalue");
-                break;
-        }
+        value.as_object()->printObject();
     }
     
+    void ObjectBoundMethod::printObject() {
+        printFunction(method->function);
+    }
+    
+    void ObjectClass::printObject() {
+        printf("%s", name->chars);
+    }
+
+    void ObjectClosure::printObject() {
+        printFunction(function);
+    }
+
+    void ObjectFunction::printObject() {
+        printFunction(this);
+    }
+    
+    void ObjectInstance::printObject() {
+        printf("%s instance", class_->name->chars);
+    }
+
+    void ObjectNative::printObject() {
+        printf("<native fn>");
+    }
+    
+    void ObjectRaw::printObject() {
+        printf("<raw buffer>");
+    }
+
+    void ObjectString::printObject() {
+        printf("%s", chars);
+    }
+    
+    void ObjectUpvalue::printObject() {
+        printf("upvalue");
+    }
+
+
 } // namespace lox

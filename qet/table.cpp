@@ -137,23 +137,21 @@ namespace lox {
         }
     }
     
+    /*
     void tableRemoveWhite(Table* table) {
         for (int i = 0; i < table->capacity; i++) {
             Entry* entry = &table->entries[i];
             if (entry->key != NULL && !entry->key->isMarked) {
-                /*
                  printf("Deleting weak entry (");
                  printValue(Value(entry->key));
                  printf(", ");
                  printValue(entry->value);
                  printf(")\n");
-                 */
                 tableDelete(table, entry->key);
             }
         }
     }
-    
-    /*
+
     void markTable(Table* table) {
         for (int i = 0; i < table->capacity; i++) {
             Entry* entry = &table->entries[i];

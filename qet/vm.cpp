@@ -127,43 +127,46 @@ namespace lox {
         return true;
     }
     
-    static bool callValue(Value callee, int argCount) {
-        if (callee.is_object()) {
-            switch (OBJECT_TYPE(callee)) {
-                case OBJECT_BOUND_METHOD: {
-                    ObjectBoundMethod* bound = AS_BOUND_METHOD(callee);
-                    vm.stackTop[-argCount - 1] = bound->receiver;
-                    return call(bound->method, argCount);
-                }
-                case OBJECT_CLASS: {
-                    ObjectClass* class_ = AS_CLASS(callee);
-                    vm.stackTop[-argCount - 1] = Value(new(0) ObjectInstance(class_));
-                    Value initializer;
-                    if (tableGet(&class_->methods, gc.initString, &initializer)) {
-                        return call(AS_CLOSURE(initializer), argCount);
-                    } else if (argCount != 0) {
-                        runtimeError("Expected 0 arguments but got %d.\n", argCount);
-                        return false;
-                    }
-                    return true;
-                }
-                case OBJECT_CLOSURE: {
-                    return call(AS_CLOSURE(callee), argCount);
-                }
-                case OBJECT_NATIVE: {
-                    NativeFn native = AS_NATIVE(callee);
-                    Value result = native(argCount, vm.stackTop - argCount);
-                    vm.stackTop -= argCount + 1;
-                    push(result);
-                    return true;
-                }
-                default:
-                    break; // Non-callable object.
-            }
-        }
+    bool Object::callObject(int argCount) {
         runtimeError("Can only call functions and classes.");
         return false;
     }
+    
+    bool ObjectBoundMethod::callObject(int argCount) {
+        vm.stackTop[-argCount - 1] = receiver;
+        return call(this->method, argCount);
+    }
+
+    bool ObjectClass::callObject(int argCount) {
+        vm.stackTop[-argCount - 1] = Value(new(0) ObjectInstance(this));
+        Value initializer;
+        if (tableGet(&this->methods, gc.initString, &initializer)) {
+            return call(AS_CLOSURE(initializer), argCount);
+        } else if (argCount != 0) {
+            runtimeError("Expected 0 arguments but got %d.\n", argCount);
+            return false;
+        }
+        return true;
+    }
+
+    bool ObjectClosure::callObject(int argCount) {
+        return call(this, argCount);
+    }
+    
+    bool ObjectNative::callObject(int argCount) {
+        Value result = this->function(argCount, vm.stackTop - argCount);
+        vm.stackTop -= argCount + 1;
+        push(result);
+        return true;
+    }
+    
+    bool callValue(Value callee, int argCount) {
+        return callee.as_object()->callObject(argCount);
+    }
+    
+
+    
+    
     
     static bool invokeFromClass(ObjectClass* class_, ObjectString* name, int argCount) {
         Value method;
@@ -177,13 +180,14 @@ namespace lox {
     static bool invoke(ObjectString* name, int argCount) {
         Value receiver = peek(argCount);
         
-        if (!IS_INSTANCE(receiver)) {
+        ObjectInstance* instance = dynamic_cast<ObjectInstance*>(receiver.as_object());
+
+        
+        if (!instance) {
             runtimeError("Only instances have methods.");
             return false;
         }
-        
-        ObjectInstance* instance = AS_INSTANCE(receiver);
-        
+                
         Value value;
         if (tableGet(&instance->fields, name, &value)) {
             // Name is a field, and shadows any method with the same name.
@@ -356,12 +360,12 @@ push(Value(a op b)); \
                     break;
                 }
                 case OPCODE_GET_PROPERTY: {
-                    if (!IS_INSTANCE(peek(0))) {
+                    ObjectInstance* instance = dynamic_cast<ObjectInstance*>(peek(0).as_object());
+                    if (!instance) {
                         runtimeError("Only instances have properties.");
                         return INTERPRET_RUNTIME_ERROR;
                     }
                     
-                    ObjectInstance* instance = AS_INSTANCE(peek(0));
                     ObjectString* name = READ_STRING();
                     
                     Value value;
@@ -377,11 +381,11 @@ push(Value(a op b)); \
                     break;
                 }
                 case OPCODE_SET_PROPERTY: {
-                    if (!IS_INSTANCE(peek(1))) {
+                    ObjectInstance* instance = dynamic_cast<ObjectInstance*>(peek(1).as_object());
+                    if (!instance) {
                         runtimeError("Only instances have properties.");
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    ObjectInstance* instance = AS_INSTANCE(peek(1));
                     tableSet(&instance->fields, READ_STRING(), peek(0));
                     Value value = pop();
                     pop();

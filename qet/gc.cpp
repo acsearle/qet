@@ -486,6 +486,7 @@ namespace gc {
                     assert(object);
                     Color after = object->sweep(context);
                     if (after == local.WHITE) {
+                        // delete object;
                         ++whites;
                         ++freed;
                     } else if (after == (local.BLACK())) {

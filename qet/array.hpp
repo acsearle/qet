@@ -31,6 +31,7 @@ namespace lox {
         self->elements = nullptr;
     }
     
+    /*
     template<typename T>
     void pushArray(Array<T>* self, T value) {
         if (self->capacity < self->count + 1) {
@@ -41,6 +42,7 @@ namespace lox {
         self->elements[self->count] = value;
         self->count++;
     }
+     */
     
     template<typename T>
     void popArray(Array<T>* self) {

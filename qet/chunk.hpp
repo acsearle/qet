@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "common.hpp"
+#include "gc.hpp"
 #include "value.hpp"
 
 namespace lox {
@@ -24,8 +25,10 @@ namespace lox {
         void write(uint8_t byte, int line);
         size_t add_constant(Value value);
         
+        void scan(gc::ScanContext&) const;
+        
     }; // struct Chunk
-    
+        
 } // namespace lox
 
 #endif /* chunk_hpp */

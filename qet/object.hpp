@@ -8,17 +8,22 @@
 #ifndef object_hpp
 #define object_hpp
 
+#include <deque>
+
 #include "array.hpp"
 #include "chunk.hpp"
 #include "common.hpp"
+#include "gc.hpp"
 #include "memory.hpp"
 #include "table.hpp"
 #include "value.hpp"
 
 namespace lox {
     
-    struct Object;
+    struct VM;
     
+    struct Object;
+        
     struct ObjectBoundMethod;
     struct ObjectClass;
     struct ObjectClosure;
@@ -33,18 +38,6 @@ namespace lox {
     // TODO: for sanity, mapping object type enum back to virtual functions
     // but, this may be a pessimization
     
-    /*
-#define OBJECT_TYPE(value) (value.as_object()->type)
-    
-#define IS_BOUND_METHOD(value) isObjectType(value, OBJECT_BOUND_METHOD)
-#define IS_CLASS(value) isObjectType(value, OBJECT_CLASS)
-#define IS_CLOSURE(value) isObjectType(value, OBJECT_CLOSURE)
-#define IS_FUNCTION(value) isObjectType(value, OBJECT_FUNCTION)
-#define IS_INSTANCE(value) isObjectType(value, OBJECT_INSTANCE)
-#define IS_NATIVE(value) isObjectType(value, OBJECT_NATIVE)
-#define IS_STRING(value) isObjectType(value, OBJECT_STRING)
-*/
-
 #define IS_BOUND_METHOD(value) (reinterpret_cast<ObjectBoundMethod*>(value.as_object()))
 #define IS_CLASS(value) (reinterpret_cast<ObjectClass*>(value.as_object()))
 #define IS_CLOSURE(value) (reinterpret_cast<ObjectClosure*>(value.as_object()))
@@ -62,132 +55,206 @@ namespace lox {
 #define AS_NATIVE(value) (((ObjectNative*)value.as_object())->function)
 #define AS_STRING(value) ((ObjectString*)value.as_object())
 #define AS_CSTRING(value) (((ObjectString*)value.as_object())->chars)
+    
     /*
-    
-#define ENUMERATE_X_OBJECT \
-X(BOUND_METHOD)\
-X(CLASS)\
-X(CLOSURE)\
-X(FUNCTION)\
-X(INSTANCE)\
-X(NATIVE)\
-X(RAW)\
-X(STRING)\
-X(UPVALUE)\
-
-#define X(Z) OBJECT_##Z,
-    enum ObjectType { ENUMERATE_X_OBJECT };
-#undef X
-    
-#define X(Z) [OBJECT_##Z] = "OBJECT_" #Z,
-    constexpr const char* ObjectTypeCString[] = { ENUMERATE_X_OBJECT };
-#undef X
+    namespace gc2 {
+        
+        struct Object;
+        
+        using Color = std::intptr_t;
+        
+        struct Palette {
+            
+            Color _white = Color{-1};
+            Color _alloc = Color{-1};
+            
+            Color white() const { return _white; }
+            Color gray()  const { return 2; }
+            Color black() const { return _white ^ 1; }
+            Color alloc() const { return _alloc; }
+            
+        };
+        
+        struct Local : Palette {
+            
+            std::deque<Object*> _log;
+            bool _dirty;
+            
+            
+            // log new objects
+            void log(Object* object) {
+                _log.push_back(object);
+            }
+            
+            // note that an object has been grayed
+            void sully() {
+                _dirty = true;
+            }
+            
+        }; // struct Local
+        
+        struct Global : Palette {
+            
+            std::mutex mutex;
+            
+            
+            
+        };
+        
+        struct ScanContext {
+            std::deque<Object*> _log;
+            void log(Object* object) {
+                _log.push_back(object);
+            }
+        };
+        
+        inline thread_local Local local;
+        
+        struct Object {
+            
+            mutable std::atomic<std::intptr_t> color;
+            
+            Object()
+            : color(local.alloc()) {
+                local.log(this);
+            }
+            
+            Object(const Object& other)
+            : Object() {
+            }
+            
+            virtual ~Object() = default;
+            
+            virtual void shade() const {
+                Color expected = local.white();
+                if (color.compare_exchange_strong(expected,
+                                                  local.gray(),
+                                                  std::memory_order_relaxed,
+                                                  std::memory_order_relaxed)) {
+                    local.sully();
+                }
+            }
+            
+            virtual void scan(ScanContext&) const {
+            }
+            
+            virtual Color sweep() const {
+                return color.load(std::memory_order_relaxed);
+            };
+                        
+        };
+        
+        template<typename T, std::enable_if_t<std::is_convertible_v<T*, Object*>, int> = 0>
+        struct Leaf : T {
+            virtual void shade() const override final {
+                Color expected = local.white();
+                Color desired = local.black();
+                this->color.compare_exchange_strong(expected,
+                                                    desired,
+                                                    std::memory_order_relaxed,
+                                                    std::memory_order_relaxed);
+            }
+        };
+        
+    } // namespaec gc
      */
     
-    struct Object {
-                
-        // explicit Object(ObjectType type);
-        virtual ~Object() = default;
-        virtual void printObject() = 0;
-        virtual bool callObject(int argCount);
-
-        static void* operator new(size_t count, int extra) {
-            return reallocate(nullptr, 0, count + extra);
-        }
-        static void operator delete(void* ptr, size_t count) {
-            reallocate(ptr, count, 0);
-        }
+    struct Object : gc::Object {
         
+        virtual void printObject() = 0;
+        virtual bool callObject(VM& vm, int argCount);
+
     };
-    
-    //template<typename T>
-    //struct ObjectArray : Object {
-    //    Array<T> array;
-    //};
-    
+        
     struct ObjectBoundMethod : Object {
         ObjectBoundMethod(Value receiver, ObjectClosure* method);
-        virtual void printObject();
-        virtual bool callObject(int argCount);
+        virtual void printObject() override;
+        virtual bool callObject(VM& vm, int argCount) override;
         Value receiver;
         ObjectClosure* method;
+        virtual void scan(gc::ScanContext& context) const override;
+        
     };
     
     struct ObjectClass : Object {
         explicit ObjectClass(ObjectString* name);
-        virtual void printObject();
-        virtual bool callObject(int argCount);
+        virtual void printObject() override;
+        virtual bool callObject(VM& vm, int argCount) override;
         ObjectString* name;
         Table methods;
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     struct ObjectClosure : Object {
-        virtual void printObject();
-        virtual bool callObject(int argCount);
+        virtual void printObject() override;
+        virtual bool callObject(VM& vm, int argCount) override;
         ObjectFunction* function;
         int upvalueCount;
         ObjectUpvalue* upvalues[];  // flexible array member
         explicit ObjectClosure(ObjectFunction* function);
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     
     struct ObjectFunction : Object {
-        virtual void printObject();
+        virtual void printObject() override;
         int arity;
         int upvalueCount;
         Chunk chunk;
         ObjectString* name;
         ObjectFunction();
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     struct ObjectInstance : Object {
-        virtual void printObject();
+        virtual void printObject() override;
         ObjectClass* class_;
         Table fields;
         explicit ObjectInstance(ObjectClass* class_);
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     struct ObjectNative : Object {
-        virtual void printObject();
-        virtual bool callObject(int argCount);
+        virtual void printObject() override;
+        virtual bool callObject(VM& vm, int argCount) override;
         NativeFn function;
         explicit ObjectNative(NativeFn function);
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     struct ObjectRaw : Object {
-        virtual void printObject();
+        virtual void printObject() override;
         unsigned char bytes[];
         static void* operator new(size_t count, size_t extra) {
             return :: operator new(count + extra);
         }
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     struct ObjectString final : Object {
-        virtual void printObject();
+        virtual void printObject() override;
         uint32_t hash;
         uint32_t length;
         char chars[0]; // flexible array member
         explicit ObjectString(uint32_t length);
         ObjectString(uint32_t hash, uint32_t length, const char* chars);
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     ObjectString* takeString(char* chars, int length);
     ObjectString* copyString(const char* chars, int length);
     
     struct ObjectUpvalue : Object {
-        virtual void printObject();
+        virtual void printObject() override;
         Value* location;
         Value closed;
         ObjectUpvalue* next;
         explicit ObjectUpvalue(Value* slot);
+        virtual void scan(gc::ScanContext& context) const override;
     };
     
     void printObject(Value value);
-    
-    //inline bool isObjectType(Value value, ObjectType type) {
-    //    return value.is_object() && value.as_object()->type == type;
-    //}
-    
+        
 } // namespacxe lox
     
 #endif /* object_hpp */

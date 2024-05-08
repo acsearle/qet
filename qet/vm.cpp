@@ -20,7 +20,7 @@
 
 namespace lox {
     
-    VM vm;
+    // VM vm;
     
     GC gc;
     
@@ -28,21 +28,21 @@ namespace lox {
         return Value((int64_t)(clock() / CLOCKS_PER_SEC));
     }
     
-    static void resetStack() {
-        vm.stackTop = vm.stack;
-        vm.frameCount = 0;
-        vm.openUpvalues = NULL;
+    void VM::resetStack() {
+        stackTop = stack;
+        frameCount = 0;
+        openUpvalues = NULL;
     }
     
-    static void runtimeError(const char* format, ...) {
+    void VM::runtimeError(const char* format, ...) {
         va_list args;
         va_start(args, format);
         vfprintf(stderr, format, args);
         va_end(args);
         fputs("\n", stderr);
         
-        for (int i = vm.frameCount - 1; i >= 0; i--) {
-            CallFrame* frame = &vm.frames[i];
+        for (int i = frameCount - 1; i >= 0; i--) {
+            CallFrame* frame = &frames[i];
             ObjectFunction* function = frame->closure->function;
             ptrdiff_t instruction = frame->ip - function->chunk.code.data() - 1;
             fprintf(stderr, "[line %d] in ",
@@ -57,19 +57,17 @@ namespace lox {
         resetStack();
     }
     
-    static void defineNative(const char* name, NativeFn function) {
+    void VM::defineNative(const char* name, NativeFn function) {
         push(Value(copyString(name, (int) strlen(name))));
-        push(Value(new(0) ObjectNative(function)));
-        tableSet(&vm.globals, AS_STRING(vm.stackTop[-2]), vm.stackTop[-1]);
+        push(Value(new ObjectNative(function)));
+        tableSet(&globals, AS_STRING(stackTop[-2]), stackTop[-1]);
         pop();
         pop();
     }
     
-    void initVM() {
+    void VM::initVM() {
         resetStack();
-        
-        initTable(&vm.globals);
-        
+        initTable(&globals);
         defineNative("clock", clockNative);
     }
     
@@ -82,8 +80,8 @@ namespace lox {
         gc.initString = copyString("init", 4);
     }
     
-    void freeVM() {
-        freeTable(&vm.globals);
+    void VM::freeVM() {
+        freeTable(&globals);
         initVM();
     }
     
@@ -94,81 +92,77 @@ namespace lox {
         initGC(); // oddly this makes a new initString
     }
     
-    void push(Value value) {
-        *vm.stackTop = value;
-        vm.stackTop++;
+    void VM::push(Value value) {
+        *stackTop = value;
+        stackTop++;
     }
     
-    Value pop() {
-        vm.stackTop--;
-        return *vm.stackTop;
+    Value VM::pop() {
+        stackTop--;
+        return *stackTop;
     }
     
-    Value peek(int distance) {
-        return vm.stackTop[-1 - distance];
+    Value VM::peek(int distance) {
+        return stackTop[-1 - distance];
     }
     
-    static bool call(ObjectClosure* closure, int argCount) {
+    bool VM::call(ObjectClosure* closure, int argCount) {
         if (argCount != closure->function->arity) {
             runtimeError("Expected %d arguments but got %d.",
                          closure->function->arity, argCount);
             return false;
         }
         
-        if (vm.frameCount == FRAMES_MAX) {
+        if (frameCount == FRAMES_MAX) {
             runtimeError("Stack overflow.");
             return false;
         }
         
-        CallFrame* frame = &vm.frames[vm.frameCount++];
+        CallFrame* frame = &frames[frameCount++];
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
-        frame->slots = vm.stackTop - argCount - 1;
+        frame->slots = stackTop - argCount - 1;
         return true;
     }
     
-    bool Object::callObject(int argCount) {
-        runtimeError("Can only call functions and classes.");
+    bool Object::callObject(VM& vm, int argCount) {
+        vm.runtimeError("Can only call functions and classes.");
         return false;
     }
     
-    bool ObjectBoundMethod::callObject(int argCount) {
+    bool ObjectBoundMethod::callObject(VM& vm, int argCount) {
         vm.stackTop[-argCount - 1] = receiver;
-        return call(this->method, argCount);
+        return vm.call(this->method, argCount);
     }
 
-    bool ObjectClass::callObject(int argCount) {
-        vm.stackTop[-argCount - 1] = Value(new(0) ObjectInstance(this));
+    bool ObjectClass::callObject(VM& vm, int argCount) {
+        vm.stackTop[-argCount - 1] = Value(new ObjectInstance(this));
         Value initializer;
         if (tableGet(&this->methods, gc.initString, &initializer)) {
-            return call(AS_CLOSURE(initializer), argCount);
+            return vm.call(AS_CLOSURE(initializer), argCount);
         } else if (argCount != 0) {
-            runtimeError("Expected 0 arguments but got %d.\n", argCount);
+            vm.runtimeError("Expected 0 arguments but got %d.\n", argCount);
             return false;
         }
         return true;
     }
 
-    bool ObjectClosure::callObject(int argCount) {
-        return call(this, argCount);
+    bool ObjectClosure::callObject(VM& vm, int argCount) {
+        return vm.call(this, argCount);
     }
     
-    bool ObjectNative::callObject(int argCount) {
+    bool ObjectNative::callObject(VM& vm, int argCount) {
         Value result = this->function(argCount, vm.stackTop - argCount);
         vm.stackTop -= argCount + 1;
-        push(result);
+        vm.push(result);
         return true;
     }
     
-    bool callValue(Value callee, int argCount) {
-        return callee.as_object()->callObject(argCount);
+    bool VM::callValue(Value callee, int argCount) {
+        return callee.as_object()->callObject(*this, argCount);
     }
-    
 
-    
-    
-    
-    static bool invokeFromClass(ObjectClass* class_, ObjectString* name, int argCount) {
+    bool VM::invokeFromClass(ObjectClass* class_, ObjectString* name, int argCount) {
         Value method;
         if (!tableGet(&class_->methods, name, &method)) {
             runtimeError("Undefined property '%s'.\n");
@@ -177,7 +171,7 @@ namespace lox {
         return call(AS_CLOSURE(method), argCount);
     }
     
-    static bool invoke(ObjectString* name, int argCount) {
+    bool VM::invoke(ObjectString* name, int argCount) {
         Value receiver = peek(argCount);
         
         ObjectInstance* instance = dynamic_cast<ObjectInstance*>(receiver.as_object());
@@ -191,7 +185,7 @@ namespace lox {
         Value value;
         if (tableGet(&instance->fields, name, &value)) {
             // Name is a field, and shadows any method with the same name.
-            vm.stackTop[-argCount - 1] = value;
+            stackTop[-argCount - 1] = value;
             return callValue(value, argCount);
         }
         
@@ -199,21 +193,21 @@ namespace lox {
         return invokeFromClass(instance->class_, name, argCount);
     }
     
-    static bool bindMethod(ObjectClass* class_, ObjectString* name) {
+    bool VM::bindMethod(ObjectClass* class_, ObjectString* name) {
         Value method;
         if (!tableGet(&class_->methods, name, &method)) {
             runtimeError("Undefined property '%s'.", name->chars);
             return false;
         }
-        ObjectBoundMethod* bound = new(0) ObjectBoundMethod(peek(0), AS_CLOSURE(method));
+        ObjectBoundMethod* bound = new ObjectBoundMethod(peek(0), AS_CLOSURE(method));
         pop();
         push(Value(bound));
         return true;
     }
     
-    static ObjectUpvalue* captureUpvalue(Value* local) {
+    ObjectUpvalue* VM::captureUpvalue(Value* local) {
         ObjectUpvalue* prevUpvalue = NULL;
-        ObjectUpvalue* upvalue = vm.openUpvalues;
+        ObjectUpvalue* upvalue = openUpvalues;
         while (upvalue != NULL && upvalue->location > local) {
             prevUpvalue = upvalue;
             upvalue = upvalue->next;
@@ -223,39 +217,39 @@ namespace lox {
             return upvalue;
         }
         
-        ObjectUpvalue* createdUpvalue = new(0) ObjectUpvalue(local);
+        ObjectUpvalue* createdUpvalue = new ObjectUpvalue(local);
         createdUpvalue->next = upvalue;
         if (prevUpvalue == NULL) {
-            vm.openUpvalues = createdUpvalue;
+            openUpvalues = createdUpvalue;
         } else {
             prevUpvalue->next = createdUpvalue;
         }
         return createdUpvalue;
     }
     
-    static void closeUpvalues(Value* last) {
-        while (vm.openUpvalues != NULL &&
-               vm.openUpvalues->location >= last) {
-            ObjectUpvalue* upvalue = vm.openUpvalues;
+    void VM::closeUpvalues(Value* last) {
+        while (openUpvalues != NULL &&
+               openUpvalues->location >= last) {
+            ObjectUpvalue* upvalue = openUpvalues;
             upvalue->closed = *upvalue->location;
             upvalue->location = &upvalue->closed;
-            vm.openUpvalues = upvalue->next;
+            openUpvalues = upvalue->next;
         }
     }
     
-    static void defineMethod(ObjectString* name) {
+    void VM::defineMethod(ObjectString* name) {
         Value method = peek(0);
         ObjectClass* class_ = AS_CLASS(peek(1));
         tableSet(&class_->methods, name, method);
         pop();
     }
     
-    static void concatenate() {
+    void VM::concatenate() {
         ObjectString* b = AS_STRING(peek(0));
         ObjectString* a = AS_STRING(peek(1));
         
         int length = a->length + b->length;
-        char* chars = ALLOCATE(char, length + 1);
+        char* chars = (char*) operator new(length + 1);
         memcpy(chars, a->chars, a->length);
         memcpy(chars + a->length, b->chars, b->length);
         chars[length] = '\0';
@@ -266,8 +260,8 @@ namespace lox {
         push(Value(result));
     }
     
-    static InterpretResult run() {
-        CallFrame* frame = &vm.frames[vm.frameCount - 1];
+    InterpretResult VM::run() {
+        CallFrame* frame = &frames[this->frameCount - 1];
         
 #define READ_BYTE() (*frame->ip++)
         
@@ -293,7 +287,7 @@ push(Value(a op b)); \
         for (;;) {
 #ifdef LOX_DEBUG_TRACE_EXECUTION
             printf("          ");
-            for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
+            for (Value* slot = this->stack; slot < this->stackTop; slot++) {
                 printf("[ ");
                 printValue(*slot);
                 printf(" ]");
@@ -327,7 +321,7 @@ push(Value(a op b)); \
                 case OPCODE_GET_GLOBAL: {
                     ObjectString* name = READ_STRING();
                     Value value;
-                    if (!tableGet(&vm.globals, name, &value)) {
+                    if (!tableGet(&this->globals, name, &value)) {
                         runtimeError("Undefined variable '%s'.", name->chars);
                         return INTERPRET_RUNTIME_ERROR;
                     }
@@ -336,14 +330,14 @@ push(Value(a op b)); \
                 }
                 case OPCODE_DEFINE_GLOBAL: {
                     ObjectString* name = READ_STRING();
-                    tableSet(&vm.globals, name, peek(0));
+                    tableSet(&this->globals, name, peek(0));
                     pop();
                     break;
                 }
                 case OPCODE_SET_GLOBAL: {
                     ObjectString* name = READ_STRING();
-                    if (tableSet(&vm.globals, name, peek(0))) {
-                        tableDelete(&vm.globals, name);
+                    if (tableSet(&this->globals, name, peek(0))) {
+                        tableDelete(&this->globals, name);
                         runtimeError("Undefined variable '%s'.", name->chars);
                         return INTERPRET_RUNTIME_ERROR;
                     }
@@ -460,7 +454,7 @@ push(Value(a op b)); \
                     if (!callValue(peek(argCount), argCount)) {
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    frame = &vm.frames[vm.frameCount - 1];
+                    frame = &this->frames[this->frameCount - 1];
                     break;
                 }
                 case OPCODE_INVOKE: {
@@ -469,7 +463,7 @@ push(Value(a op b)); \
                     if (!invoke(method, argCount)) {
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    frame = &vm.frames[vm.frameCount - 1];
+                    frame = &this->frames[this->frameCount - 1];
                     break;
                 }
                 case OPCODE_SUPER_INVOKE: {
@@ -479,12 +473,12 @@ push(Value(a op b)); \
                     if (!invokeFromClass(superclass, method, argCount)) {
                         return INTERPRET_RUNTIME_ERROR;
                     }
-                    frame = &vm.frames[vm.frameCount - 1];
+                    frame = &this->frames[this->frameCount - 1];
                     break;
                 }
                 case OPCODE_CLOSURE: {
                     ObjectFunction* function = AS_FUNCTION(READ_CONSTANT());
-                    ObjectClosure* closure = new(function->upvalueCount * sizeof(ObjectUpvalue*)) ObjectClosure(function);
+                    ObjectClosure* closure = new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
                     push(Value(closure));
                     for (int i = 0; i < closure->upvalueCount; i++) {
                         uint8_t isLocal = READ_BYTE();
@@ -499,26 +493,26 @@ push(Value(a op b)); \
                     break;
                 }
                 case OPCODE_CLOSE_UPVALUE: {
-                    closeUpvalues(vm.stackTop - 1);
+                    closeUpvalues(this->stackTop - 1);
                     pop();
                     break;
                 }
                 case OPCODE_RETURN: {
                     Value result = pop();
                     closeUpvalues(frame->slots);
-                    vm.frameCount--;
-                    if (vm.frameCount == 0) {
+                    this->frameCount--;
+                    if (this->frameCount == 0) {
                         pop();
                         return INTERPRET_OK;
                     }
                     
-                    vm.stackTop = frame->slots;
+                    this->stackTop = frame->slots;
                     push(result);
-                    frame = &vm.frames[vm.frameCount - 1];
+                    frame = &this->frames[this->frameCount - 1];
                     break;
                 }
                 case OPCODE_CLASS: {
-                    push(Value(new(0) ObjectClass(READ_STRING())));
+                    push(Value(new ObjectClass(READ_STRING())));
                     break;
                 }
                 case OPCODE_INHERIT: {
@@ -548,12 +542,12 @@ push(Value(a op b)); \
     }
     
     
-    InterpretResult interpret(const char* source) {
+    InterpretResult VM::interpret(const char* source) {
         ObjectFunction* function = compile(source);
         if (function == NULL) return INTERPRET_COMPILE_ERROR;
         
         push(Value(function));
-        ObjectClosure* closure = new(function->upvalueCount * sizeof(ObjectUpvalue*)) ObjectClosure(function);
+        ObjectClosure* closure = new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
         pop();
         push(Value(closure));
         call(closure, 0);

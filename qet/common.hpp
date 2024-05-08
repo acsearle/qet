@@ -11,10 +11,10 @@
 #include <cstddef>
 #include <cstdint>
 
-#define LOX_DEBUG_PRINT_CODE
-#define LOX_DEBUG_TRACE_EXECUTION
-#define LOX_DEBUG_STRESS_GC
-#define LOX_DEBUG_LOG_GC
+//#define LOX_DEBUG_PRINT_CODE
+//#define LOX_DEBUG_TRACE_EXECUTION
+//#define LOX_DEBUG_STRESS_GC
+//#define LOX_DEBUG_LOG_GC
 
 namespace lox {
         

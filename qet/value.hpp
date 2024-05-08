@@ -11,6 +11,7 @@
 #include <cassert>
 
 #include "common.hpp"
+#include "gc.hpp"
 
 namespace lox {
     
@@ -65,6 +66,9 @@ X(OBJECT)\
         bool     as_bool()    const { assert(is_bool());    return (bool) as.int64; }
         int64_t  as_int64()   const { assert(is_int64());   return as.int64; }
         Object*     as_object()     const { return is_object() ? as.object : nullptr; }
+        
+        
+        void scan(gc::ScanContext&) const;
         
     };
     

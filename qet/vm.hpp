@@ -17,14 +17,6 @@ namespace lox {
     struct GC {
         Table strings;
         ObjectString* initString;
-        /*
-        size_t bytesAllocated;
-        size_t nextGC;
-        
-        Object* objects;
-        std::vector<Object*> grayStack;
-        std::vector<Value> roots;
-         */
     };
     
     extern GC gc;
@@ -38,7 +30,14 @@ namespace lox {
         Value* slots;
     };
     
+    enum InterpretResult {
+        INTERPRET_OK,
+        INTERPRET_COMPILE_ERROR,
+        INTERPRET_RUNTIME_ERROR,
+    };
+    
     struct VM {
+
         CallFrame frames[FRAMES_MAX];
         int frameCount;
         
@@ -46,24 +45,42 @@ namespace lox {
         Value* stackTop;
         Table globals;
         ObjectUpvalue* openUpvalues;
+
+        // public?
+        
+        void initVM();
+        void freeVM();
+        void push(Value value);
+        Value pop();
+        Value peek(int distance);
+
+        // private?
+        
+        void resetStack();
+        void runtimeError(const char* format, ...);
+        void defineNative(const char* name, NativeFn function);
+        bool call(ObjectClosure* closure, int argCount);
+        bool callValue(Value callee, int argCount);
+        bool invokeFromClass(ObjectClass* class_, ObjectString* name, int argCount);
+        bool invoke(ObjectString* name, int argCount);
+        bool bindMethod(ObjectClass* class_, ObjectString* name);
+        ObjectUpvalue* captureUpvalue(Value* local);
+        void closeUpvalues(Value* last);
+        void defineMethod(ObjectString* name);
+        void concatenate();
+        InterpretResult run();
+        InterpretResult interpret(const char* source);
+
+
+        
     };
     
-    extern VM vm;
+    // extern VM vm;
     
-    enum InterpretResult {
-        INTERPRET_OK,
-        INTERPRET_COMPILE_ERROR,
-        INTERPRET_RUNTIME_ERROR,
-    };
+   
     
     void initGC();
     void freeGC();
-    void initVM();
-    void freeVM();
-    InterpretResult interpret(const char* source);
-    void push(Value value);
-    Value pop();
-    Value peek(int distance);
     
 } // namespace lox
 

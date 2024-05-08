@@ -521,6 +521,7 @@ namespace gc {
 
 
 
+/*
 namespace gc2 {
     
     struct Allocation {
@@ -546,5 +547,6 @@ namespace gc2 {
     };
     
 };
+ */
 
 #endif /* gc_hpp */

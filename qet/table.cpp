@@ -18,6 +18,16 @@
 
 namespace lox {
     
+    void Table::scan(gc::ScanContext& context) const {
+        for (int index = 0; index != capacity; ++index) {
+            Entry* entry = &entries[index];
+            if (entry->key) {
+                context.push(entry->key);
+                entry->value.scan(context);
+            }
+        }
+    }
+    
     void initTable(Table* table) {
         table->count = 0;
         table->capacity = 0;
@@ -25,7 +35,8 @@ namespace lox {
     }
     
     void freeTable(Table* table) {
-        reallocate(table->entries, table->capacity * sizeof(Entry), 0);
+        //reallocate(table->entries, table->capacity * sizeof(Entry), 0);
+        operator delete(table->entries, table->capacity * sizeof(Entry));
         initTable(table);
     }
     
@@ -73,7 +84,7 @@ namespace lox {
     }
     
     static void adjustCapacity(Table* table, int capacity) {
-        Entry* entries = ALLOCATE(Entry, capacity);
+        Entry* entries = (Entry*) operator new(sizeof(Entry) * capacity);
         for (int i = 0; i < capacity; i++) {
             entries[i].key = NULL;
             entries[i].value = Value();
@@ -89,7 +100,8 @@ namespace lox {
             table->count++;
         }
         
-        reallocate(table->entries, table->capacity * sizeof(Entry), 0);
+        //reallocate(table->entries, table->capacity * sizeof(Entry), 0);
+        operator delete(table->entries, table->capacity * sizeof(Entry));
         table->entries = entries;
         table->capacity = capacity;
     }

@@ -301,7 +301,7 @@ namespace lox {
             this->type = type;
             this->localCount = 0;
             this->scopeDepth = 0;
-            this->function = new(0) ObjectFunction();
+            this->function = new ObjectFunction();
             if (type != TYPE_SCRIPT) {
                 this->function->name = copyString(parser.previous.start,
                                                   parser.previous.length);

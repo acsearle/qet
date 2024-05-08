@@ -32,11 +32,23 @@ namespace lox {
     , method(method) {
     }
     
+    void ObjectBoundMethod::scan(gc::ScanContext &context) const {
+        receiver.scan(context);
+        context.push(method);
+    }
+    
+    
     ObjectClass::ObjectClass(ObjectString* name)
     : name(name) {
         initTable(&methods);
     }
+
+    void ObjectClass::scan(gc::ScanContext &context) const {
+        context.push(name);
+        methods.scan(context);
+    }
     
+
     ObjectClosure::ObjectClosure(ObjectFunction* function)
     : function(function)
     , upvalueCount(function->upvalueCount) {
@@ -44,9 +56,10 @@ namespace lox {
             upvalues[i] = nullptr;
     }
     
-    ObjectInstance::ObjectInstance(ObjectClass* class_) {
-        this->class_ = class_;
-        initTable(&fields);
+    void ObjectClosure::scan(gc::ScanContext &context) const {
+        context.push(function);
+        for (int i = 0; i < upvalueCount; i++)
+            context.push(upvalues[i]);
     }
     
     ObjectFunction::ObjectFunction()
@@ -55,16 +68,31 @@ namespace lox {
     , name(nullptr) {
     }
     
+    void ObjectFunction::scan(gc::ScanContext &context) const {
+        chunk.scan(context);
+        context.push(name);
+    }
+
+    ObjectInstance::ObjectInstance(ObjectClass* class_) {
+        this->class_ = class_;
+        initTable(&fields);
+    }
+    
+    void ObjectInstance::scan(gc::ScanContext &context) const {
+        context.push(class_);
+        fields.scan(context);
+    }
+    
     ObjectNative::ObjectNative(NativeFn function)
     : function(function) {
     }
     
-    ObjectUpvalue::ObjectUpvalue(Value* slot)
-    : closed(Value())
-    , location(slot)
-    , next(nullptr) {
+    void ObjectNative::scan(gc::ScanContext&) const {
     }
     
+    void ObjectRaw::scan(gc::ScanContext&) const {        
+    }
+        
     ObjectString::ObjectString(uint32_t length)
     : length(length) {
     }
@@ -77,6 +105,21 @@ namespace lox {
         //gc.roots.push_back(Value(this));
         tableSet(&gc.strings, this, Value());
         //gc.roots.pop_back();
+    }
+    
+    void ObjectString::scan(gc::ScanContext& context) const {        
+    }
+    
+    ObjectUpvalue::ObjectUpvalue(Value* slot)
+    : closed(Value())
+    , location(slot)
+    , next(nullptr) {
+    }
+    
+    void ObjectUpvalue::scan(gc::ScanContext& context) const {
+        location->scan(context);
+        closed.scan(context);
+        context.push(next);
     }
     
     static uint32_t hashString(const char* key, int length) {
@@ -93,9 +136,9 @@ namespace lox {
         uint32_t hash = hashString(chars, length);
         ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
         if (interned == nullptr) {
-            interned = new(length + 1) ObjectString(hash, length, chars);
+            interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
         }
-        reallocate(chars, length + 1, 0);
+        operator delete(chars);
         return interned;
     }
     
@@ -103,7 +146,7 @@ namespace lox {
         uint32_t hash = hashString(chars, length);
         ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
         if (interned == nullptr) {
-            interned = new(length + 1) ObjectString(hash, length, chars);
+            interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
         }
         return interned;
     }

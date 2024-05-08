@@ -23,5 +23,10 @@ namespace lox {
         return constants.size() - 1;
     }
     
+    void Chunk::scan(gc::ScanContext& context) const {
+        for (Value value : constants)
+            value.scan(context);
+    }
+    
 } // namespace lox
 

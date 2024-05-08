@@ -9,6 +9,7 @@
 #define table_hpp
 
 #include "common.hpp"
+#include "gc.hpp"
 #include "value.hpp"
 
 namespace lox {
@@ -24,6 +25,9 @@ namespace lox {
         int count;
         int capacity;
         Entry* entries;
+        
+        void scan(gc::ScanContext& context) const;
+        
     };
     
     void initTable(Table* table);

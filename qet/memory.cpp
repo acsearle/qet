@@ -20,6 +20,7 @@
 
 namespace lox {
     
+    /*
     void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
         // gc.bytesAllocated += (newSize - oldSize);
         if (newSize > oldSize
@@ -38,6 +39,7 @@ namespace lox {
         if (result == NULL) exit(1);
         return result;
     }
+     */
     
     /*
     void markObject(Object* object) {

@@ -15,6 +15,11 @@
 
 namespace lox {
     
+    void Value::scan(gc::ScanContext& context) const {
+        if (type == VALUE_OBJECT)
+            context.push(as.object);
+    }
+    
     bool Value::invariant() const {
         switch (type) {
             case VALUE_NIL:

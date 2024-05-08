@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 
 #include "chunk.hpp"
 #include "common.hpp"
@@ -9,16 +10,17 @@
 
 namespace lox {
     
-    static void repl() {
+    static void repl(VM& vm) {
         char line[1024];
         for (;;) {
+            gc::handshake();
             printf("> ");
             if (!fgets(line, sizeof(line), stdin)) {
                 printf("\n");
                 break;
             }
             // TODO: gracefully handle structures spanning multiple lines
-            interpret(line);
+            vm.interpret(line);
         }
     }
     
@@ -56,9 +58,9 @@ namespace lox {
     
     
     
-    void runFile(const char* path) {
+    void runFile(VM& vm, const char* path) {
         char* source = readFile(path);
-        InterpretResult result = interpret(source);
+        InterpretResult result = vm.interpret(source);
         free(source);
         
         if (result == INTERPRET_COMPILE_ERROR) exit(65);
@@ -137,20 +139,27 @@ print clock() - start;
 
 int main(int argc, const char * argv[]) {
     using namespace lox;
+    pthread_setname_np("M0");
+    std::thread collector{gc::collect};
+    gc::enter();
     initGC();
-    initVM();
-    interpret(preamble);
+    VM vm;
+    vm.initVM();
+    vm.interpret(preamble);
+    gc::handshake();
     if (true) {
         if (argc == 1) {
-            repl();
+            repl(vm);
         } else if (argc == 2) {
-            runFile(argv[1]);
+            runFile(vm, argv[1]);
         } else {
             fprintf(stderr, "Usage: qet [path]\n");
             exit(64);
         }
     }
-    freeVM();
+    vm.freeVM();
     freeGC();
+    gc::leave();
+    collector.join();
     return 0;
 }

@@ -13,7 +13,6 @@
 #include "common.hpp"
 #include "compiler.hpp"
 #include "debug.hpp"
-#include "memory.hpp"
 #include "object.hpp"
 #include "opcodes.hpp"
 #include "vm.hpp"
@@ -24,7 +23,7 @@ namespace lox {
     
     GC gc;
     
-    static Value clockNative(int argCount, Value* args) {
+    static Value clockNative(int argCount, AtomicValue* args) {
         return Value((int64_t)(clock() / CLOCKS_PER_SEC));
     }
     
@@ -43,7 +42,7 @@ namespace lox {
         
         for (int i = frameCount - 1; i >= 0; i--) {
             CallFrame* frame = &frames[i];
-            ObjectFunction* function = frame->closure->function;
+            const ObjectFunction* function = frame->closure->function;
             ptrdiff_t instruction = frame->ip - function->chunk.code.data() - 1;
             fprintf(stderr, "[line %d] in ",
                     function->chunk.lines[instruction]);
@@ -58,11 +57,9 @@ namespace lox {
     }
     
     void VM::defineNative(const char* name, NativeFn function) {
-        push(Value(copyString(name, (int) strlen(name))));
-        push(Value(new ObjectNative(function)));
-        tableSet(&globals, AS_STRING(stackTop[-2]), stackTop[-1]);
-        pop();
-        pop();
+        tableSet(&globals, 
+                 copyString(name, (int) strlen(name)),
+                 Value(new ObjectNative(function)));
     }
     
     void VM::initVM() {
@@ -99,11 +96,13 @@ namespace lox {
     
     Value VM::pop() {
         stackTop--;
-        return *stackTop;
+        Value value = stackTop.load()->load();
+        gc::shade(value.as_object());
+        return value;
     }
     
     Value VM::peek(int distance) {
-        return stackTop[-1 - distance];
+        return stackTop[-1 - distance].load();
     }
     
     bool VM::call(ObjectClosure* closure, int argCount) {
@@ -205,7 +204,7 @@ namespace lox {
         return true;
     }
     
-    ObjectUpvalue* VM::captureUpvalue(Value* local) {
+    ObjectUpvalue* VM::captureUpvalue(AtomicValue* local) {
         ObjectUpvalue* prevUpvalue = NULL;
         ObjectUpvalue* upvalue = openUpvalues;
         while (upvalue != NULL && upvalue->location > local) {
@@ -227,7 +226,7 @@ namespace lox {
         return createdUpvalue;
     }
     
-    void VM::closeUpvalues(Value* last) {
+    void VM::closeUpvalues(AtomicValue* last) {
         while (openUpvalues != NULL &&
                openUpvalues->location >= last) {
             ObjectUpvalue* upvalue = openUpvalues;
@@ -245,8 +244,8 @@ namespace lox {
     }
     
     void VM::concatenate() {
-        ObjectString* b = AS_STRING(peek(0));
-        ObjectString* a = AS_STRING(peek(1));
+        const ObjectString* b = AS_STRING(peek(0));
+        const ObjectString* a = AS_STRING(peek(1));
         
         int length = a->length + b->length;
         char* chars = (char*) operator new(length + 1);
@@ -297,6 +296,14 @@ push(Value(a op b)); \
                                    frame->ip - frame->closure->function->chunk.code.data());
 #endif
             
+            {
+                printf("---\n");
+                gc::handshake();
+                gc::shade(this);
+            }
+
+            
+            
             uint8_t instruction;
             switch (instruction = READ_BYTE()) {
                 case OPCODE_CONSTANT: {
@@ -310,7 +317,7 @@ push(Value(a op b)); \
                 case OPCODE_POP: pop(); break;
                 case OPCODE_GET_LOCAL: {
                     uint8_t slot = READ_BYTE();
-                    push(frame->slots[slot]);
+                    push(frame->slots[slot].load());
                     break;
                 }
                 case OPCODE_SET_LOCAL: {
@@ -345,7 +352,7 @@ push(Value(a op b)); \
                 }
                 case OPCODE_GET_UPVALUE: {
                     uint8_t slot = READ_BYTE();
-                    push(*frame->closure->upvalues[slot]->location);
+                    push(frame->closure->upvalues[slot]->location->load());
                     break;
                 }
                 case OPCODE_SET_UPVALUE: {
@@ -553,6 +560,15 @@ push(Value(a op b)); \
         call(closure, 0);
         
         return run();
+    }
+    
+    void VM::scan(gc::ScanContext& context) const {
+        for (int i = 0; i != frameCount; ++i)
+            context.push(frames[i].closure);
+        for (auto p = stack; p != stackTop; ++p)
+            context.push(p->load().as_object());
+        markTable(&globals);
+        context.push(openUpvalues);
     }
     
 }

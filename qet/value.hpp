@@ -58,16 +58,16 @@ X(OBJECT)\
             return (type != VALUE_NIL) && ((type != VALUE_BOOL) || as.int64);
         }
         
-        bool is_nil()     const { return type == VALUE_NIL    ; }
-        bool is_bool()    const { return type == VALUE_BOOL   ; }
-        bool is_int64()   const { return type == VALUE_INT64  ; }
-        bool is_object()     const { return type == VALUE_OBJECT    ; }
+        bool is_nil() const { return type == VALUE_NIL    ; }
+        bool is_bool() const { return type == VALUE_BOOL   ; }
+        bool is_int64() const { return type == VALUE_INT64  ; }
+        bool is_object() const { return type == VALUE_OBJECT    ; }
         
-        bool     as_bool()    const { assert(is_bool());    return (bool) as.int64; }
-        int64_t  as_int64()   const { assert(is_int64());   return as.int64; }
-        Object*     as_object()     const { return is_object() ? as.object : nullptr; }
+        bool as_bool() const { assert(is_bool());    return (bool) as.int64; }
+        int64_t as_int64() const { assert(is_int64());   return as.int64; }
+        Object* as_object() const { return is_object() ? as.object : nullptr; }
         
-        
+        void shade() const;
         void scan(gc::ScanContext&) const;
         
     };
@@ -88,6 +88,40 @@ X(OBJECT)\
                 return std::forward<decltype(visitor)>(value.as.object);
         }
     }
+    
+    struct AtomicValue {
+        
+        std::atomic<Value> inner;
+        
+        AtomicValue() : inner(Value()) {}
+        
+        explicit AtomicValue(const AtomicValue& other)
+        : AtomicValue(other.inner.load(std::memory_order_relaxed)) {
+        }
+        
+        explicit AtomicValue(const Value& value) 
+        : inner(value) {
+        }
+
+        ~AtomicValue() {
+        }
+        
+        AtomicValue& operator=(const AtomicValue& other) {
+            return operator=(other.inner.load(std::memory_order_relaxed));
+        }
+        
+        AtomicValue& operator=(const Value& value) {
+            value.shade();
+            Value old = inner.exchange(value, std::memory_order_release);
+            old.shade();
+            return *this;
+        }
+        
+        Value load() const {
+            return inner.load(std::memory_order_acquire);
+        }
+        
+    };
     
 } // namespace lox
 

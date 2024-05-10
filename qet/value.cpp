@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "memory.hpp"
 #include "object.hpp"
 #include "value.hpp"
 
@@ -69,6 +68,10 @@ namespace lox {
             case VALUE_OBJECT:
                 return a.as.object == b.as.object;
         }
+    }
+    
+    void Value::shade() const {
+        gc::shade(as_object());
     }
     
 } // namespace lox

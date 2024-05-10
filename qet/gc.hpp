@@ -20,6 +20,10 @@
 
 namespace gc {
     
+    // TODO:
+    //
+    // Do we need to be able to 
+    
     enum class extra_val_t : std::size_t {};
         
     using Color = std::intptr_t;
@@ -29,9 +33,9 @@ namespace gc {
     inline constexpr Color RED  = 3;
     
     // WHITE -> not yet reached
-    // GRAY  -> reached but not yet scanned
-    // BLACK -> scanned (or leaf)
-    // RED   -> still weak-reachable but not elligible for upgrade
+    // GRAY  -> reached but must scan fields
+    // BLACK -> reached and no further work required
+    // RED   -> weak-reachable but not eligible for upgrade to strong
     
     using Order = std::memory_order;
     inline constexpr Order RELAXED = std::memory_order_relaxed;

@@ -9,12 +9,14 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "memory.hpp"
 #include "object.hpp"
 #include "table.hpp"
 #include "value.hpp"
 
 #define TABLE_MAX_LOAD 0.75
+
+#define GROW_CAPACITY(capacity) \
+((capacity) < 8 ? 8 : capacity * 2)
 
 namespace lox {
     
@@ -132,6 +134,16 @@ namespace lox {
     ObjectString* tableFindString(Table* table, const char* chars, int length, uint32_t hash) {
         if (table->count == 0) return NULL;
         
+        /*
+        for(int i = 0; i != table->capacity; ++i) {
+            Entry* entry = &table->entries[i];
+            if (entry->key) {
+                entry->key->printObject();
+                // printObject(entry->value);
+            }
+        }
+         */
+        
         uint32_t index = hash & (table->capacity - 1);
         for (;;) {
             Entry* entry = &table->entries[index];
@@ -164,14 +176,17 @@ namespace lox {
         }
     }
 
-    void markTable(Table* table) {
+     */
+    
+    void markTable(const Table* table) {
         for (int i = 0; i < table->capacity; i++) {
             Entry* entry = &table->entries[i];
-            markObject(entry->key);
-            markValue(entry->value);
+            // markObject(entry->key);
+            // markValue(entry->value);
+            gc::shade(entry->key);            
+            gc::shade(entry->value.as_object());
         }
     }
-     */
     
     void debugTable(Table* table) {
         printf("struct Table {\n");

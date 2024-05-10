@@ -12,7 +12,6 @@
 #include "common.hpp"
 #include "compiler.hpp"
 #include "opcodes.hpp"
-#include "memory.hpp"
 #include "scanner.hpp"
 
 #ifdef LOX_DEBUG_PRINT_CODE

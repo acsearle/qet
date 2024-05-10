@@ -16,6 +16,8 @@
 
 namespace lox {
     
+    // Chunks only get stored as members of functions
+    
     struct Chunk {
         
         std::vector<uint8_t> code;

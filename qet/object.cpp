@@ -8,7 +8,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "memory.hpp"
 #include "object.hpp"
 #include "table.hpp"
 #include "value.hpp"
@@ -110,15 +109,15 @@ namespace lox {
     void ObjectString::scan(gc::ScanContext& context) const {        
     }
     
-    ObjectUpvalue::ObjectUpvalue(Value* slot)
+    ObjectUpvalue::ObjectUpvalue(AtomicValue* slot)
     : closed(Value())
     , location(slot)
     , next(nullptr) {
     }
     
     void ObjectUpvalue::scan(gc::ScanContext& context) const {
-        location->scan(context);
-        closed.scan(context);
+        location->load().scan(context);
+        closed.load().scan(context);
         context.push(next);
     }
     
@@ -151,7 +150,7 @@ namespace lox {
         return interned;
     }
     
-    static void printFunction(ObjectFunction* function) {
+    static void printFunction(const ObjectFunction* function) {
         if (function->name == NULL) {
             printf("<script>");
             return;

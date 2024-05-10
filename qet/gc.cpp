@@ -7,6 +7,7 @@
 
 #include <thread>
 #include "gc.hpp"
+#include "vm.hpp"
 
 namespace gc {
     
@@ -264,6 +265,7 @@ namespace gc {
                             ++count;
                             shade(ref);
                         }
+                                                
                         LOG("shaded %zd global roots\n");
                     }
 
@@ -316,6 +318,10 @@ namespace gc {
             }
 
             LOG("end transition to allocating BLACK");
+            
+            // hack some stuff
+            markTable(&lox::gc.strings);
+
 
             // New allocations are BLACK
             // All objects allocated before the transition are in "objects"

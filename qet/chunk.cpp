@@ -6,7 +6,6 @@
 //
 
 #include "chunk.hpp"
-#include "memory.hpp"
 #include "vm.hpp"
 
 namespace lox {
@@ -17,14 +16,13 @@ namespace lox {
     }
     
     size_t Chunk::add_constant(Value value) {
-        //gc.roots.push_back(value);
+        value.shade();
         constants.push_back(value);
-        //gc.roots.pop_back();
         return constants.size() - 1;
     }
     
     void Chunk::scan(gc::ScanContext& context) const {
-        for (Value value : constants)
+        for (const Value& value : constants)
             value.scan(context);
     }
     

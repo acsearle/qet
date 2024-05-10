@@ -25,9 +25,9 @@ namespace lox {
     constexpr size_t STACK_MAX  = FRAMES_MAX + UINT8_COUNT;
     
     struct CallFrame {
-        ObjectClosure* closure;
+        gc::StrongPtr<ObjectClosure> closure;
         uint8_t* ip;
-        Value* slots;
+        AtomicValue* slots;
     };
     
     enum InterpretResult {
@@ -36,13 +36,13 @@ namespace lox {
         INTERPRET_RUNTIME_ERROR,
     };
     
-    struct VM {
+    struct VM : gc::Object {
 
         CallFrame frames[FRAMES_MAX];
         int frameCount;
         
-        Value stack[STACK_MAX];
-        Value* stackTop;
+        AtomicValue stack[STACK_MAX];
+        std::atomic<AtomicValue*> stackTop;
         Table globals;
         ObjectUpvalue* openUpvalues;
 
@@ -64,14 +64,15 @@ namespace lox {
         bool invokeFromClass(ObjectClass* class_, ObjectString* name, int argCount);
         bool invoke(ObjectString* name, int argCount);
         bool bindMethod(ObjectClass* class_, ObjectString* name);
-        ObjectUpvalue* captureUpvalue(Value* local);
-        void closeUpvalues(Value* last);
+        ObjectUpvalue* captureUpvalue(AtomicValue* local);
+        void closeUpvalues(AtomicValue* last);
         void defineMethod(ObjectString* name);
         void concatenate();
         InterpretResult run();
         InterpretResult interpret(const char* source);
 
 
+        void scan(gc::ScanContext&) const override;
         
     };
     

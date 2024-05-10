@@ -38,7 +38,7 @@ namespace lox {
     void tableAddAll(Table* from, Table* to);
     ObjectString* tableFindString(Table* table, const char* chars, int length, uint32_t hash);
     void tableRemoveWhite(Table* table);
-    void markTable(Table* table);
+    void markTable(const Table* table);
     void printTable(Table* table);
     
 } // namespace lox

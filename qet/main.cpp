@@ -13,7 +13,10 @@ namespace lox {
     static void repl(VM& vm) {
         char line[1024];
         for (;;) {
-            gc::handshake();
+            {
+                gc::handshake();
+                gc::shade(&vm);
+            }
             printf("> ");
             if (!fgets(line, sizeof(line), stdin)) {
                 printf("\n");
@@ -143,21 +146,24 @@ int main(int argc, const char * argv[]) {
     std::thread collector{gc::collect};
     gc::enter();
     initGC();
-    VM vm;
-    vm.initVM();
-    vm.interpret(preamble);
-    gc::handshake();
+    VM* vm =  new VM;
+    vm->initVM();
+    vm->interpret(preamble);
+    {
+        gc::handshake();
+        gc::shade(vm);
+    }
     if (true) {
         if (argc == 1) {
-            repl(vm);
+            repl(*vm);
         } else if (argc == 2) {
-            runFile(vm, argv[1]);
+            runFile(*vm, argv[1]);
         } else {
             fprintf(stderr, "Usage: qet [path]\n");
             exit(64);
         }
     }
-    vm.freeVM();
+    // vm->freeVM();
     freeGC();
     gc::leave();
     collector.join();

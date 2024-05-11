@@ -121,6 +121,10 @@ X(OBJECT)\
             return inner.load(std::memory_order_acquire);
         }
         
+        Value reset() {
+            return inner.exchange(Value(), std::memory_order_relaxed);
+        }
+        
     };
     
 } // namespace lox

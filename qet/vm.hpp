@@ -42,9 +42,9 @@ namespace lox {
         int frameCount;
         
         AtomicValue stack[STACK_MAX];
-        std::atomic<AtomicValue*> stackTop;
+        AtomicValue* stackTop;
         Table globals;
-        ObjectUpvalue* openUpvalues;
+        gc::StrongPtr<ObjectUpvalue> openUpvalues;
 
         // public?
         

@@ -22,6 +22,7 @@ namespace lox {
     };
     
     struct Table {
+        mutable std::mutex _mutex;
         int count;
         int capacity;
         Entry* entries;

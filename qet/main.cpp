@@ -133,7 +133,7 @@ fun fib(n) {
 }
 
 var start = clock();
-print fib(7); // was 29 // was 35
+print fib(35); // was 29 // was 35
 print clock() - start;
 
 )""";

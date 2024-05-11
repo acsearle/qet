@@ -443,6 +443,7 @@ namespace gc {
     template<typename T>
     StrongPtr<T>& StrongPtr<T>::operator=(std::nullptr_t) {
         ptr.store(nullptr, RELEASE);
+        return *this;
     }
     
     template<typename T>

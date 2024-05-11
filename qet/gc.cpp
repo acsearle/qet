@@ -21,6 +21,7 @@ namespace gc {
 
     
     void LOG(const char* format, ...) {
+#ifdef LOX_DEBUG_LOG_GC
         char buffer[256];
         pthread_getname_np(pthread_self(), buffer + 240, 16);
         const char* dirty = local.dirty ? "dirty" : "clean";
@@ -30,6 +31,7 @@ namespace gc {
         vsnprintf(buffer + n, 256 - n, format, args);
         va_end(args);
         puts(buffer);
+#endif
     }
     
     struct ScanContextPrivate : ScanContext {
@@ -358,7 +360,7 @@ namespace gc {
                         Object* object = objects.front();
                         objects.pop_front();
                         assert(object);
-                        object->debug();
+                        //object->debug();
                         Color expected = GRAY;
                         object->color.compare_exchange_strong(expected,
                                                               local.BLACK(),

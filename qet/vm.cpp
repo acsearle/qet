@@ -30,7 +30,7 @@ namespace lox {
     void VM::resetStack() {
         stackTop = stack;
         frameCount = 0;
-        openUpvalues = NULL;
+        openUpvalues = nullptr;
     }
     
     void VM::runtimeError(const char* format, ...) {
@@ -96,7 +96,7 @@ namespace lox {
     
     Value VM::pop() {
         stackTop--;
-        Value value = stackTop.load()->load();
+        Value value = stackTop->reset();
         gc::shade(value.as_object());
         return value;
     }
@@ -206,7 +206,7 @@ namespace lox {
     
     ObjectUpvalue* VM::captureUpvalue(AtomicValue* local) {
         ObjectUpvalue* prevUpvalue = NULL;
-        ObjectUpvalue* upvalue = openUpvalues;
+        ObjectUpvalue* upvalue = (ObjectUpvalue*) openUpvalues;
         while (upvalue != NULL && upvalue->location > local) {
             prevUpvalue = upvalue;
             upvalue = upvalue->next;
@@ -227,9 +227,9 @@ namespace lox {
     }
     
     void VM::closeUpvalues(AtomicValue* last) {
-        while (openUpvalues != NULL &&
+        while (openUpvalues != nullptr &&
                openUpvalues->location >= last) {
-            ObjectUpvalue* upvalue = openUpvalues;
+            ObjectUpvalue* upvalue = (ObjectUpvalue*) openUpvalues;
             upvalue->closed = *upvalue->location;
             upvalue->location = &upvalue->closed;
             openUpvalues = upvalue->next;
@@ -283,7 +283,7 @@ int64_t a = pop().as_int64(); \
 push(Value(a op b)); \
 } while(false)
         
-        for (;;) {
+        for (int qqq = 0;; ++qqq) {
 #ifdef LOX_DEBUG_TRACE_EXECUTION
             printf("          ");
             for (Value* slot = this->stack; slot < this->stackTop; slot++) {
@@ -296,8 +296,9 @@ push(Value(a op b)); \
                                    frame->ip - frame->closure->function->chunk.code.data());
 #endif
             
-            {
-                printf("---\n");
+            // handshake every 128 instructions
+            if (!(qqq & 127)) {
+                // printf("---\n");
                 gc::handshake();
                 gc::shade(this);
             }
@@ -563,10 +564,12 @@ push(Value(a op b)); \
     }
     
     void VM::scan(gc::ScanContext& context) const {
-        for (int i = 0; i != frameCount; ++i)
+        // We have to scan the whole fixed size arrays else we race with
+        // frameCount and stackTop
+        for (int i = 0; i != FRAMES_MAX; ++i)
             context.push(frames[i].closure);
-        for (auto p = stack; p != stackTop; ++p)
-            context.push(p->load().as_object());
+        for (int i = 0; i != STACK_MAX; ++i)
+            context.push(stack[i].load().as_object());
         markTable(&globals);
         context.push(openUpvalues);
     }

@@ -20,9 +20,20 @@ namespace lox {
     
     struct Chunk {
         
-        std::vector<uint8_t> code;
-        std::vector<int> lines;
-        std::vector<Value> constants;
+        std::vector<uint8_t> code;    // <-- bytecode
+        std::vector<Value> constants; // <-- function literals table
+
+        
+        // debug cold
+        
+        // old
+        std::vector<int> lines;       // <-- line number from scanner
+        
+        // new
+        // shared source code metadata and text
+        std::vector<const char*> where; // <-- location in text provoking bytecode
+        
+        
         
         void write(uint8_t byte, int line);
         size_t add_constant(Value value);

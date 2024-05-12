@@ -37,6 +37,9 @@ namespace lox {
         };
         
         struct Parser {
+            
+            Scanner* scanner;
+            
             Token current;
             Token previous;
             bool hadError;
@@ -50,8 +53,6 @@ namespace lox {
             void consume(TokenType type, const char* message);
             bool check(TokenType type);
             bool match(TokenType type);
-            
-            
         };
         
         struct Compiler;
@@ -199,7 +200,7 @@ namespace lox {
         void Parser::advance() {
             previous = current;
             for (;;) {
-                current = scanToken();
+                current = scanner->scanToken();
                 if (current.type != TOKEN_ERROR) break;
                 
                 errorAtCurrent(current.start);
@@ -996,7 +997,7 @@ namespace lox {
     } // namespace
     
     ObjectFunction* compile(const char* source) {
-        initScanner(source);
+        parser.scanner = Scanner::make(source);
         // Compiler compiler;
         // initCompiler(&compiler, TYPE_SCRIPT);
         Compiler compiler(TYPE_SCRIPT, nullptr);

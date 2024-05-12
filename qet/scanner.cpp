@@ -13,18 +13,36 @@
 
 namespace lox {
     
-    struct Scanner {
+    struct ConcreteScanner : Scanner {
         const char* start;
         const char* current;
         int line;
+        
+        explicit ConcreteScanner(const char* source);
+        
+        bool isAtEnd() const;
+        char advance();
+        char peek() const;
+        char peekNext() const;
+        bool match(char expected);
+        Token makeToken(TokenType type) const;
+        Token errorToken(const char* message) const;
+        void skipWhitespace();
+        TokenType checkKeyword(int start, int length, const char* rest, TokenType type) const;
+        TokenType identifierType() const;
+        Token identifier();
+        Token string();
+        Token number();
+        virtual Token scanToken();
+
     };
     
-    Scanner scanner;
+    // Scanner scanner;
     
-    void initScanner(const char* source) {
-        scanner.start = source;
-        scanner.current = source;
-        scanner.line = 1;
+    ConcreteScanner::ConcreteScanner(const char* source) {
+        start = source;
+        current = source;
+        line = 1;
     }
     
     static bool isAlpha(char c) {
@@ -37,51 +55,50 @@ namespace lox {
         return c >= '0' && c <= '9';
     }
     
-    static bool isAtEnd() {
-        return *scanner.current == '\0';
+    bool ConcreteScanner::isAtEnd() const {
+        return *current == '\0';
     }
     
-    static char advance() {
-        scanner.current++;
-        return scanner.current[-1];
+    char ConcreteScanner::advance() {
+        return *current++;
     }
     
-    static char peek() {
-        return *scanner.current;
+    char ConcreteScanner::peek() const {
+        return *current;
     }
     
-    static char peekNext() {
+    char ConcreteScanner::peekNext() const {
         if (isAtEnd())
             return '\0';
-        return scanner.current[1];
+        return *(current + 1);
     }
     
-    static bool match(char expected) {
+    bool ConcreteScanner::match(char expected) {
         if (isAtEnd()) return false;
-        if (*scanner.current != expected) return false;
-        scanner.current++;
+        if (*current != expected) return false;
+        current++;
         return true;
     }
     
-    static Token makeToken(TokenType type) {
+    Token ConcreteScanner::makeToken(TokenType type) const {
         Token token;
         token.type = type;
-        token.start = scanner.start;
-        token.length = (int)(scanner.current - scanner.start);
-        token.line = scanner.line;
+        token.start = start;
+        token.length = (int)(current - start);
+        token.line = line;
         return token;
     }
     
-    static Token errorToken(const char* message) {
+    Token ConcreteScanner::errorToken(const char* message) const {
         Token token;
         token.type = TOKEN_ERROR;
         token.start = message;
         token.length = (int)strlen(message);
-        token.line = scanner.line;
+        token.line = line;
         return token;
     }
     
-    static void skipWhitespace() {
+    void ConcreteScanner::skipWhitespace() {
         for (;;) {
             char c = peek();
             switch (c) {
@@ -91,7 +108,7 @@ namespace lox {
                     advance();
                     break;
                 case '\n':
-                    scanner.line++;
+                    line++;
                     advance();
                     break;
                 case '/':
@@ -107,23 +124,22 @@ namespace lox {
     }
     
     
-    static TokenType checkKeyword(int start, int length, const char* rest, TokenType type) {
-        if (scanner.current - scanner.start == start + length &&
-            memcmp(scanner.start + start, rest, length) == 0)
-        {
+    TokenType ConcreteScanner::checkKeyword(int start, int length, const char* rest, TokenType type) const {
+        if (current - this->start == start + length &&
+            memcmp(this->start + start, rest, length) == 0) {
             return type;
         }
         return TOKEN_IDENTIFIER;
     }
     
-    static TokenType identifierType() {
-        switch (scanner.start[0]) {
+    TokenType ConcreteScanner::identifierType() const {
+        switch (start[0]) {
             case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
             case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
             case 'e': return checkKeyword(1, 2, "lse", TOKEN_ELSE);
             case 'f':
-                if (scanner.current - scanner.start > 1) {
-                    switch (scanner.start[1]) {
+                if (current - start > 1) {
+                    switch (start[1]) {
                         case 'a': return checkKeyword(2, 3, "lse", TOKEN_FALSE);
                         case 'o': return checkKeyword(2, 1, "r", TOKEN_FOR);
                         case 'u': return checkKeyword(2, 1, "n", TOKEN_FUN);
@@ -137,8 +153,8 @@ namespace lox {
             case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
             case 's': return checkKeyword(1, 4, "uper", TOKEN_SUPER);
             case 't':
-                if (scanner.current - scanner.start > 1) {
-                    switch (scanner.start[1]) {
+                if (current - start > 1) {
+                    switch (start[1]) {
                         case 'h': return checkKeyword(2, 2, "is", TOKEN_THIS);
                         case 'r': return checkKeyword(2, 2, "ue", TOKEN_TRUE);
                     }
@@ -150,14 +166,14 @@ namespace lox {
         return TOKEN_IDENTIFIER;
     }
     
-    static Token identifier() {
+    Token ConcreteScanner::identifier() {
         while (isAlpha(peek()) || isDigit(peek())) advance();
         return makeToken(identifierType());
     }
     
-    static Token string() {
+    Token ConcreteScanner::string() {
         while (peek() != '"' && !isAtEnd()) {
-            if (peek() == '\n') scanner.line++;
+            if (peek() == '\n') line++;
             advance();
         }
         if (isAtEnd())
@@ -168,7 +184,7 @@ namespace lox {
         return makeToken(TOKEN_STRING);
     }
     
-    static Token number() {
+    Token ConcreteScanner::number() {
         while (isDigit(peek())) advance();
         if (peek() == '.' && isDigit(peekNext())) {
             // Consume the '.'.
@@ -178,9 +194,9 @@ namespace lox {
         return makeToken(TOKEN_NUMBER);
     }
     
-    Token scanToken() {
+    Token ConcreteScanner::scanToken() {
         skipWhitespace();
-        scanner.start = scanner.current;
+        start = current;
         if (isAtEnd()) return makeToken(TOKEN_EOF);
         
         char c = advance();
@@ -209,6 +225,10 @@ namespace lox {
         }
         
         return errorToken("Unexpected character.");
+    }
+    
+    Scanner* Scanner::make(const char* source) {
+        return new ConcreteScanner(source);
     }
     
 } // namespace lox

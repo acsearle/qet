@@ -8,6 +8,8 @@
 #ifndef scanner_hpp
 #define scanner_hpp
 
+#include "gc.hpp"
+
 namespace lox {
     
 #define ENUMERATE_X_TOKEN \
@@ -67,8 +69,14 @@ namespace lox {
         int line;
     };
     
-    void initScanner(const char* source);
-    Token scanToken();
+    struct Scanner 
+    : gc::Object {
+        static Scanner* make(const char* source);
+        virtual Token scanToken() = 0;
+    };
+    
+    // void initScanner(const char* source);
+    // Token scanToken();
     
 } // namespace lox
 

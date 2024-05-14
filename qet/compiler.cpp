@@ -53,6 +53,8 @@ namespace lox {
             void consume(TokenType type, const char* message);
             bool check(TokenType type);
             bool match(TokenType type);
+            
+            void synchronize();
         };
         
         struct Compiler;
@@ -86,6 +88,8 @@ namespace lox {
         };
         
         struct Compiler {
+            
+            Parser* parser;
             
             Compiler* enclosing;
             ObjectFunction* function;
@@ -167,7 +171,7 @@ namespace lox {
             bool hasSuperclass;
         };
         
-        Parser parser;
+        // Parser parser;
         ClassCompiler* currentClass = NULL;
         
         
@@ -234,7 +238,7 @@ namespace lox {
         }
         
         void Compiler::emitByte(uint8_t byte) {
-            chunk()->write(byte, parser.previous.line);
+            chunk()->write(byte, parser->previous.line, parser->previous.start);
         }
         
         void Compiler::emitBytes(uint8_t byte1, uint8_t byte2) {
@@ -245,7 +249,7 @@ namespace lox {
         void Compiler::emitLoop(ptrdiff_t loopStart) {
             emitByte(OPCODE_LOOP);
             ptrdiff_t offset = chunk()->code.size() - loopStart + 2;
-            if (offset > UINT16_MAX) parser.error("Loop body too large.");
+            if (offset > UINT16_MAX) parser->error("Loop body too large.");
             // TODO: Big-endian
             emitByte((offset >> 8) & 0xff);
             emitByte(offset & 0xff);
@@ -270,7 +274,7 @@ namespace lox {
         uint8_t Compiler::makeConstant(Value value) {
             ptrdiff_t constant = chunk()->add_constant(value);
             if (constant > UINT8_MAX) {
-                parser.error("Too many constants in one chunk.");
+                parser->error("Too many constants in one chunk.");
                 return 0;
             }
             
@@ -285,7 +289,7 @@ namespace lox {
             // -2 to adjust for the bytecode for the jump offset itself
             ptrdiff_t jump = chunk()->code.size() - offset - 2;
             if (jump > UINT16_MAX) {
-                parser.error("Too much code to jump over.");
+                parser->error("Too much code to jump over.");
             }
             // this is big-endian for some stupid reason
             chunk()->code[offset] = (jump >> 8) & 0xff;
@@ -297,14 +301,17 @@ namespace lox {
             compilerRoots.push_back(this); // dubious to let compiler escape while we are constructing it
             
             this->enclosing = enclosing;
+            if (this->enclosing) {
+                this->parser = this->enclosing->parser;
+            }
             this->function = NULL;
             this->type = type;
             this->localCount = 0;
             this->scopeDepth = 0;
             this->function = new ObjectFunction();
             if (type != TYPE_SCRIPT) {
-                this->function->name = copyString(parser.previous.start,
-                                                  parser.previous.length);
+                this->function->name = copyString(parser->previous.start,
+                                                  parser->previous.length);
             }
             
             Local* local = &this->locals[this->localCount++];
@@ -317,6 +324,7 @@ namespace lox {
                 local->name.start = "";
                 local->name.length = 0;
             }
+                        
         }
         
         ObjectFunction* endCompiler(Compiler* compiler) {
@@ -324,7 +332,7 @@ namespace lox {
             ObjectFunction* function = compiler->function;
             
 #ifdef LOX_DEBUG_PRINT_CODE
-            if (!parser.hadError) {
+            if (!compiler->parser->hadError) {
                 disassembleChunk(compiler->chunk(), function->name != NULL ? function->name->chars : "<script>");
             }
 #endif
@@ -371,7 +379,7 @@ namespace lox {
                 Local* local = &locals[i];
                 if (identifiersEqual(name, &local->name)) {
                     if (local->depth == -1) {
-                        parser.error("Can't read local variable in its own initializer");
+                        parser->error("Can't read local variable in its own initializer");
                     }
                     return i;
                 }
@@ -391,7 +399,7 @@ namespace lox {
             }
             
             if (upvalueCount == UINT8_COUNT) {
-                parser.error("Too many closure variables in function.");
+                parser->error("Too many closure variables in function.");
                 return 0;
             }
             
@@ -419,7 +427,7 @@ namespace lox {
         
         void Compiler::addLocal(Token name) {
             if (localCount == UINT8_COUNT) {
-                parser.error("Too many local variables in function.");
+                parser->error("Too many local variables in function.");
                 return;
             }
             Local* local = &locals[ localCount++];
@@ -431,24 +439,24 @@ namespace lox {
         void Compiler::declareVariable() {
             if (scopeDepth == 0)
                 return;
-            Token* name = &parser.previous;
+            Token* name = &parser->previous;
             for (int i = localCount - 1; i >= 0; i--) {
                 Local* local = &locals[i];
                 if (local->depth != -1 && local->depth < scopeDepth) {
                     break;
                 }
                 if (identifiersEqual(name, &local->name)) {
-                    parser.error("Already a variable with this name in this scope.");
+                    parser->error("Already a variable with this name in this scope.");
                 }
             }
             addLocal(*name);
         }
         
         uint8_t Compiler::parseVariable(const char* errorMessage) {
-            parser.consume(TOKEN_IDENTIFIER, errorMessage);
+            parser->consume(TOKEN_IDENTIFIER, errorMessage);
             declareVariable();
             if (scopeDepth > 0) return 0;
-            return identifierConstant(&parser.previous);
+            return identifierConstant(&parser->previous);
         }
         
         // not GC mark
@@ -468,16 +476,16 @@ namespace lox {
         
         uint8_t Compiler::argumentList() {
             uint8_t argCount = 0;
-            if (!parser.check(TOKEN_RIGHT_PAREN)) {
+            if (!parser->check(TOKEN_RIGHT_PAREN)) {
                 do {
                     expression();
                     argCount++;
                     if (argCount == 255) {
-                        parser.error("Can't have more than 255 arguments.");
+                        parser->error("Can't have more than 255 arguments.");
                     }
-                } while (parser.match(TOKEN_COMMA));
+                } while (parser->match(TOKEN_COMMA));
             }
-            parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after rguments.");
+            parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after rguments.");
             return argCount;
         }
         
@@ -490,7 +498,7 @@ namespace lox {
         
         
         void Compiler::binary(bool canAssign) {
-            TokenType operatorType = parser.previous.type;
+            TokenType operatorType = parser->previous.type;
             ParseRule* rule = getRule(operatorType);
             parsePrecedence((Precedence)(rule->precedence + 1));
             
@@ -515,13 +523,13 @@ namespace lox {
         }
         
         void Compiler::dot(bool canAssign) {
-            parser.consume(TOKEN_IDENTIFIER, "Expect property name after '.'");
-            uint8_t name = identifierConstant(&parser.previous);
+            parser->consume(TOKEN_IDENTIFIER, "Expect property name after '.'");
+            uint8_t name = identifierConstant(&parser->previous);
             
-            if (canAssign && parser.match(TOKEN_EQUAL)) {
+            if (canAssign && parser->match(TOKEN_EQUAL)) {
                 expression();
                 emitBytes(OPCODE_SET_PROPERTY, name);
-            } else if (parser.match(TOKEN_LEFT_PAREN)) {
+            } else if (parser->match(TOKEN_LEFT_PAREN)) {
                 uint8_t argCount = argumentList();
                 emitBytes(OPCODE_INVOKE, name);
                 emitByte(argCount);
@@ -531,7 +539,7 @@ namespace lox {
         }
         
         void Compiler::literal(bool canAssign) {
-            switch (parser.previous.type) {
+            switch (parser->previous.type) {
                 case TOKEN_FALSE: emitByte(OPCODE_FALSE); break;
                 case TOKEN_NIL: emitByte(OPCODE_NIL); break;
                 case TOKEN_TRUE: emitByte(OPCODE_TRUE); break;
@@ -542,11 +550,11 @@ namespace lox {
         
         void Compiler::grouping(bool canAssign) {
             expression();
-            parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+            parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
         }
         
         void Compiler::number(bool canAssign) {
-            int64_t value = strtoll(parser.previous.start, NULL, 10);
+            int64_t value = strtoll(parser->previous.start, NULL, 10);
             emitConstant(Value(value));
         }
         
@@ -562,8 +570,8 @@ namespace lox {
         }
         
         void Compiler::string(bool canAssign) {
-            emitConstant(Value(copyString(parser.previous.start + 1,
-                                          parser.previous.length - 2)));
+            emitConstant(Value(copyString(parser->previous.start + 1,
+                                          parser->previous.length - 2)));
         }
         
         void Compiler::namedVariable(Token name, bool canAssign) {
@@ -581,7 +589,7 @@ namespace lox {
                 setOp = OPCODE_SET_GLOBAL;
             }
             
-            if (canAssign && parser.match(TOKEN_EQUAL)) {
+            if (canAssign && parser->match(TOKEN_EQUAL)) {
                 expression();
                 emitBytes(setOp, arg);
             } else {
@@ -590,7 +598,7 @@ namespace lox {
         }
         
         void Compiler::variable(bool canAssign) {
-            namedVariable(parser.previous, canAssign);
+            namedVariable(parser->previous, canAssign);
         }
         
         Token syntheticToken(const char* text) {
@@ -602,16 +610,16 @@ namespace lox {
         
         void Compiler::super_(bool canAssign) {
             if (currentClass == NULL) {
-                parser.error("Can't use 'super' outside of a class.");
+                parser->error("Can't use 'super' outside of a class.");
             } else if (!currentClass->hasSuperclass) {
-                parser.error("Can't user 'super' in a class with no superclass.");
+                parser->error("Can't user 'super' in a class with no superclass.");
             }
             
-            parser.consume(TOKEN_DOT, "Expect '.' after super.");
-            parser.consume(TOKEN_IDENTIFIER, "Expect superclass method name.");
-            uint8_t name = identifierConstant(&parser.previous);
+            parser->consume(TOKEN_DOT, "Expect '.' after super.");
+            parser->consume(TOKEN_IDENTIFIER, "Expect superclass method name.");
+            uint8_t name = identifierConstant(&parser->previous);
             namedVariable(syntheticToken("this"), false);
-            if (parser.match(TOKEN_LEFT_PAREN)) {
+            if (parser->match(TOKEN_LEFT_PAREN)) {
                 uint8_t argCount = argumentList();
                 namedVariable(syntheticToken("super"), false);
                 emitBytes(OPCODE_SUPER_INVOKE, name);
@@ -624,7 +632,7 @@ namespace lox {
         
         void Compiler::this_(bool canAssign) {
             if (currentClass == NULL) {
-                parser.error("Can't use 'this' outside of a class.");
+                parser->error("Can't use 'this' outside of a class.");
                 return;
             }
             variable(false);
@@ -635,29 +643,29 @@ namespace lox {
         }
         
         void Compiler::block() {
-            while (!parser.check(TOKEN_RIGHT_BRACE) && !parser.check(TOKEN_EOF)) {
+            while (!parser->check(TOKEN_RIGHT_BRACE) && !parser->check(TOKEN_EOF)) {
                 declaration();
             }
-            parser.consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
+            parser->consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
         }
         
         void Compiler::functionDefinition(FunctionType type) {
             Compiler compiler(type, this);
             compiler.beginScope();
             
-            parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
-            if (!parser.check(TOKEN_RIGHT_PAREN)) {
+            parser->consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+            if (!parser->check(TOKEN_RIGHT_PAREN)) {
                 do {
                     compiler.function->arity++;
                     if (compiler.function->arity > 255) {
-                        parser.errorAtCurrent("Can't have more than 255 parameters.");
+                        parser->errorAtCurrent("Can't have more than 255 parameters.");
                     }
                     uint8_t constant = compiler.parseVariable("Expect parameter name.");
                     compiler.defineVariable(constant);
-                } while (parser.match(TOKEN_COMMA));
+                } while (parser->match(TOKEN_COMMA));
             }
-            parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
-            parser.consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+            parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+            parser->consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
             compiler.block();
             
             ObjectFunction* function = endCompiler(&compiler);
@@ -671,12 +679,12 @@ namespace lox {
         }
         
         void Compiler::method() {
-            parser.consume(TOKEN_IDENTIFIER, "Expect method name.");
-            uint8_t constant =  identifierConstant(&parser.previous);
+            parser->consume(TOKEN_IDENTIFIER, "Expect method name.");
+            uint8_t constant =  identifierConstant(&parser->previous);
             
             FunctionType type = TYPE_METHOD;
-            if (parser.previous.length == 4 &&
-                memcmp(parser.previous.start, "init", 4) == 0) {
+            if (parser->previous.length == 4 &&
+                memcmp(parser->previous.start, "init", 4) == 0) {
                 type = TYPE_INITIALIZER;
             }
             functionDefinition(type);
@@ -684,9 +692,9 @@ namespace lox {
         }
         
         void Compiler::classDeclaration() {
-            parser.consume(TOKEN_IDENTIFIER, "Expect class name.");
-            Token className = parser.previous;
-            uint8_t nameConstant =  identifierConstant(&parser.previous);
+            parser->consume(TOKEN_IDENTIFIER, "Expect class name.");
+            Token className = parser->previous;
+            uint8_t nameConstant =  identifierConstant(&parser->previous);
             declareVariable();
             
             emitBytes(OPCODE_CLASS, nameConstant);
@@ -697,12 +705,12 @@ namespace lox {
             classCompiler.hasSuperclass = false;
             currentClass = &classCompiler;
             
-            if (parser.match(TOKEN_LESS)) {
-                parser.consume(TOKEN_IDENTIFIER, "Expect superclass name.");
+            if (parser->match(TOKEN_LESS)) {
+                parser->consume(TOKEN_IDENTIFIER, "Expect superclass name.");
                 variable(false);
                 
-                if (identifiersEqual(&className, &parser.previous)) {
-                    parser.error("A class can't inherit from itself.");
+                if (identifiersEqual(&className, &parser->previous)) {
+                    parser->error("A class can't inherit from itself.");
                 }
                 
                 beginScope();
@@ -715,11 +723,11 @@ namespace lox {
             }
             
             namedVariable(className, false);
-            parser.consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
-            while (!parser.check(TOKEN_RIGHT_BRACE) && !parser.check(TOKEN_EOF)) {
+            parser->consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
+            while (!parser->check(TOKEN_RIGHT_BRACE) && !parser->check(TOKEN_EOF)) {
                 method();
             }
-            parser.consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
+            parser->consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
             emitByte(OPCODE_POP);
             
             if (classCompiler.hasSuperclass) {
@@ -738,27 +746,27 @@ namespace lox {
         
         void Compiler::varDeclaration() {
             uint8_t global = parseVariable("Expect variable name.");
-            if (parser.match(TOKEN_EQUAL)) {
+            if (parser->match(TOKEN_EQUAL)) {
                 expression();
             } else {
                 emitByte(OPCODE_NIL);
             }
-            parser.consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
+            parser->consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
             defineVariable(global);
         }
         
         void Compiler::expressionStatement() {
             expression();
-            parser.consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+            parser->consume(TOKEN_SEMICOLON, "Expect ';' after value.");
             emitByte(OPCODE_POP);
         }
         
         void Compiler::forStatement() {
             beginScope();
-            parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
-            if (parser.match(TOKEN_SEMICOLON)) {
+            parser->consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+            if (parser->match(TOKEN_SEMICOLON)) {
                 // No initializer.
-            } else if (parser.match(TOKEN_VAR)) {
+            } else if (parser->match(TOKEN_VAR)) {
                 varDeclaration();
             } else {
                 expressionStatement();
@@ -766,20 +774,20 @@ namespace lox {
             
             ptrdiff_t loopStart = chunk()->code.size();
             ptrdiff_t exitJump = -1;
-            if (!parser.match(TOKEN_SEMICOLON)) {
+            if (!parser->match(TOKEN_SEMICOLON)) {
                 expression();
-                parser.consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
+                parser->consume(TOKEN_SEMICOLON, "Expect ';' after loop condition.");
                 
                 // Jump out of the loop if the condition is false.
                 exitJump = emitJump(OPCODE_JUMP_IF_FALSE);
                 emitByte(OPCODE_POP); // Condition
             }
-            if (!parser.match(TOKEN_RIGHT_PAREN)) {
+            if (!parser->match(TOKEN_RIGHT_PAREN)) {
                 ptrdiff_t bodyJump = emitJump(OPCODE_JUMP);
                 ptrdiff_t incrementStart = chunk()->code.size();
                 expression();
                 emitByte(OPCODE_POP);
-                parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+                parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
                 
                 emitLoop(loopStart);
                 loopStart = incrementStart;
@@ -799,9 +807,9 @@ namespace lox {
         }
         
         void Compiler::ifStatement() {
-            parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+            parser->consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
             expression();
-            parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+            parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
             ptrdiff_t thenJump = emitJump(OPCODE_JUMP_IF_FALSE);
             emitByte(OPCODE_POP);
             statement();
@@ -809,40 +817,40 @@ namespace lox {
             patchJump(thenJump);
             emitByte(OPCODE_POP);
             
-            if (parser.match(TOKEN_ELSE)) statement();
+            if (parser->match(TOKEN_ELSE)) statement();
             patchJump(elseJump);
             
         }
         
         void Compiler::printStatement() {
             expression();
-            parser.consume(TOKEN_SEMICOLON, "Expect ';' after value.");
+            parser->consume(TOKEN_SEMICOLON, "Expect ';' after value.");
             emitByte(OPCODE_PRINT);
         }
         
         void Compiler::returnStatement() {
             if (type == TYPE_SCRIPT) {
-                parser.error("Can't return from top-level code.");
+                parser->error("Can't return from top-level code.");
             }
             
-            if (parser.match(TOKEN_SEMICOLON)) {
+            if (parser->match(TOKEN_SEMICOLON)) {
                 emitReturn();
             } else {
                 if (type == TYPE_INITIALIZER) {
-                    parser.error("Can't return a value from an initializer.");
+                    parser->error("Can't return a value from an initializer.");
                 }
                 
                 expression();
-                parser.consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+                parser->consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
                 emitByte(OPCODE_RETURN);
             }
         }
         
         void Compiler::whileStatement() {
             ptrdiff_t loopStart = chunk()->code.size();
-            parser.consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+            parser->consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
             expression();
-            parser.consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
+            parser->consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
             
             ptrdiff_t exitJump = emitJump(OPCODE_JUMP_IF_FALSE);
             emitByte(OPCODE_POP);
@@ -852,11 +860,11 @@ namespace lox {
             patchJump(exitJump);
         }
         
-        void synchronize() {
-            parser.panicMode = false;
-            while (parser.current.type != TOKEN_EOF) {
-                if (parser.previous.type == TOKEN_SEMICOLON) return;
-                switch (parser.current.type) {
+        void Parser::synchronize() {
+            panicMode = false;
+            while (current.type != TOKEN_EOF) {
+                if (previous.type == TOKEN_SEMICOLON) return;
+                switch (current.type) {
                     case TOKEN_CLASS:
                     case TOKEN_FUN:
                     case TOKEN_VAR:
@@ -872,35 +880,35 @@ namespace lox {
                         break;
                 }
                 
-                parser.advance();
+                advance();
             }
         }
         
         void Compiler::declaration() {
-            if (parser.match(TOKEN_CLASS)) {
+            if (parser->match(TOKEN_CLASS)) {
                 classDeclaration();
-            } else if (parser.match(TOKEN_FUN)) {
+            } else if (parser->match(TOKEN_FUN)) {
                 funDeclaration();
-            } else if (parser.match(TOKEN_VAR)) {
+            } else if (parser->match(TOKEN_VAR)) {
                 varDeclaration();
             } else {
                 statement();
             }
-            if (parser.panicMode) synchronize();
+            if (parser->panicMode) parser->synchronize();
         }
         
         void Compiler::statement() {
-            if (parser.match(TOKEN_PRINT)) {
+            if (parser->match(TOKEN_PRINT)) {
                 printStatement();
-            } else if (parser.match(TOKEN_FOR)) {
+            } else if (parser->match(TOKEN_FOR)) {
                 forStatement();
-            } else if (parser.match(TOKEN_IF)) {
+            } else if (parser->match(TOKEN_IF)) {
                 ifStatement();
-            } else if (parser.match(TOKEN_RETURN)) {
+            } else if (parser->match(TOKEN_RETURN)) {
                 returnStatement();
-            } else if (parser.match(TOKEN_WHILE)) {
+            } else if (parser->match(TOKEN_WHILE)) {
                 whileStatement();
-            } else if (parser.match(TOKEN_LEFT_BRACE)) {
+            } else if (parser->match(TOKEN_LEFT_BRACE)) {
                 beginScope();
                 block();
                 endScope();
@@ -911,7 +919,7 @@ namespace lox {
         
         
         void Compiler::unary(bool canAssign) {
-            TokenType operatorType = parser.previous.type;
+            TokenType operatorType = parser->previous.type;
             
             // Compile the operand.
             parsePrecedence(PREC_UNARY);
@@ -968,24 +976,24 @@ namespace lox {
         };
         
         void Compiler::parsePrecedence(Precedence precedence) {
-            parser.advance();
-            ParseFn prefixRule = getRule(parser.previous.type)->prefix;
+            parser->advance();
+            ParseFn prefixRule = getRule(parser->previous.type)->prefix;
             if (prefixRule == NULL) {
-                parser.error("Expect expression.");
+                parser->error("Expect expression.");
                 return;
             }
             
             bool canAssign = precedence <= PREC_ASSIGNMENT;
             std::invoke(prefixRule, this, canAssign);
             
-            while (precedence <= getRule(parser.current.type)->precedence) {
-                parser.advance();
-                ParseFn infixRule = getRule(parser.previous.type)->infix;
+            while (precedence <= getRule(parser->current.type)->precedence) {
+                parser->advance();
+                ParseFn infixRule = getRule(parser->previous.type)->infix;
                 std::invoke(infixRule, this, canAssign);
             }
             
-            if (canAssign && parser.match(TOKEN_EQUAL)) {
-                parser.error("Invalid assignment target.");
+            if (canAssign && parser->match(TOKEN_EQUAL)) {
+                parser->error("Invalid assignment target.");
             }
             
         }
@@ -997,20 +1005,21 @@ namespace lox {
     } // namespace
     
     ObjectFunction* compile(const char* source) {
-        parser.scanner = Scanner::make(source);
         // Compiler compiler;
         // initCompiler(&compiler, TYPE_SCRIPT);
         Compiler compiler(TYPE_SCRIPT, nullptr);
+        compiler.parser = new Parser;
+        compiler.parser->scanner = Scanner::make(source);
+
+        compiler.parser->hadError = false;
+        compiler.parser->panicMode = false;
         
-        parser.hadError = false;
-        parser.panicMode = false;
-        
-        parser.advance();
-        while (!parser.match(TOKEN_EOF)) {
+        compiler.parser->advance();
+        while (!compiler.parser->match(TOKEN_EOF)) {
             compiler.declaration();
         }
         ObjectFunction* function = endCompiler(&compiler);
-        return parser.hadError ? NULL : function;
+        return compiler.parser->hadError ? NULL : function;
     }
     
     /*

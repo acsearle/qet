@@ -10,9 +10,10 @@
 
 namespace lox {
     
-    void Chunk::write(uint8_t byte, int line) {
+    void Chunk::write(uint8_t byte, int line, const char* start) {
         code.push_back(byte);
         lines.push_back(line);
+        this->where.push_back(start);
     }
     
     size_t Chunk::add_constant(Value value) {

@@ -286,9 +286,9 @@ push(Value(a op b)); \
         for (int qqq = 0;; ++qqq) {
 #ifdef LOX_DEBUG_TRACE_EXECUTION
             printf("          ");
-            for (Value* slot = this->stack; slot < this->stackTop; slot++) {
+            for (AtomicValue* slot = this->stack; slot < this->stackTop; slot++) {
                 printf("[ ");
-                printValue(*slot);
+                printValue(slot->load());
                 printf(" ]");
             }
             printf("\n");

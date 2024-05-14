@@ -35,7 +35,7 @@ namespace lox {
         
         
         
-        void write(uint8_t byte, int line);
+        void write(uint8_t byte, int line, const char* start);
         size_t add_constant(Value value);
         
         void scan(gc::ScanContext&) const;

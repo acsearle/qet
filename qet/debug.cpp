@@ -115,6 +115,13 @@ namespace lox {
     };
     
     ptrdiff_t disassembleInstruction(Chunk* chunk, ptrdiff_t offset) {
+        {
+            const char* first = chunk->where[offset];
+            const char* last = first;
+            while (*last != '\0' && *last != '\n')
+                ++last;
+            printf("    %.*s...\n", (int)(last - first), first);
+        }
         printf("%04ld ", offset);
         if (offset > 0 &&
             chunk->lines[offset] == chunk->lines[offset - 1]) {

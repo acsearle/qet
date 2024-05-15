@@ -41,13 +41,20 @@ namespace lox {
     struct Entry {
         ObjectString* key;
         Value value;
+        
+        void scan(gc::ScanContext& context) const;
+        
     };
+    
+    // void scan(const Entry&, gc::ScanContext&);
     
     struct Table {
         mutable std::mutex _mutex;
         int count;
-        int capacity;
-        Entry* entries;
+        // int capacity;
+        // Entry* entries;
+        int capacity() const;
+        gc::StrongPtr<gc::Array<Entry>> entries;
         
         void scan(gc::ScanContext& context) const;
         
@@ -63,6 +70,8 @@ namespace lox {
     void tableRemoveWhite(Table* table);
     void markTable(const Table* table);
     void printTable(Table* table);
+    
+    void scan(const Table&, gc::ScanContext&);
     
 } // namespace lox
 

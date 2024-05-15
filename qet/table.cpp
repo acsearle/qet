@@ -22,7 +22,8 @@
 namespace lox {
     
     void Table::scan(gc::ScanContext& context) const {
-        std::unique_lock lock{_mutex};
+        // std::unique_lock lock{_mutex};
+        /*
         for (int index = 0; index != capacity; ++index) {
             Entry* entry = &entries[index];
             if (entry->key) {
@@ -30,17 +31,22 @@ namespace lox {
                 lox::scan(entry->value, context);
             }
         }
+         */
+        // entries->scan(context);
+        context.push((gc::Array<Entry>*) entries);
     }
     
     void initTable(Table* table) {
+        std::unique_lock lock{table->_mutex};
         table->count = 0;
-        table->capacity = 0;
-        table->entries = NULL;
+        // table->capacity = 0;
+        // table->entries = NULL;
+        table->entries = nullptr;
     }
     
     void freeTable(Table* table) {
-        //reallocate(table->entries, table->capacity * sizeof(Entry), 0);
-        operator delete(table->entries, table->capacity * sizeof(Entry));
+        // reallocate(table->entries, table->capacity * sizeof(Entry), 0);
+        // operator delete(table->entries, table->capacity * sizeof(Entry));
         initTable(table);
     }
     
@@ -68,7 +74,7 @@ namespace lox {
         std::unique_lock lock{table->_mutex};
         if (table->count == 0) return false;
         
-        Entry* entry = findEntry(table->entries, table->capacity, key);
+        Entry* entry = findEntry(table->entries->_data, table->capacity(), key);
         if (entry->key == NULL) return false;
         
         *value = entry->value;
@@ -80,7 +86,7 @@ namespace lox {
         if (table->count == 0) return false;
         
         // Find the entry.
-        Entry* entry = findEntry(table->entries, table->capacity, key);
+        Entry* entry = findEntry(table->entries->_data, table->capacity(), key);
         if (entry->key == NULL) return false;
         
         // Place a tombstone in the entry.
@@ -90,35 +96,36 @@ namespace lox {
     }
     
     static void adjustCapacity(Table* table, int capacity) {
-        Entry* entries = (Entry*) operator new(sizeof(Entry) * capacity);
-        for (int i = 0; i < capacity; i++) {
-            entries[i].key = NULL;
-            entries[i].value = Value();
-        }
-        table->count = 0;
-        for (int i = 0; i < table->capacity; i++) {
-            Entry* entry = &table->entries[i];
+        // Entry* entries = (Entry*) operator new(sizeof(Entry) * capacity);
+        gc::Array<Entry>* entries = gc::Array<Entry>::make(capacity);
+        //for (int i = 0; i < capacity; i++) {
+        //    entries->_data[i].key = NULL;
+        //    entries->_data[i].value = Value();
+        //}
+        //table->count = 0;
+        for (int i = 0; i < table->capacity(); i++) {
+            Entry* entry = &table->entries->_data[i];
             if (entry->key == NULL) continue;
             
-            Entry* dest = findEntry(entries, capacity, entry->key);
+            Entry* dest = findEntry(entries->_data, capacity, entry->key);
             dest->key = entry->key;
             dest->value = entry->value;
-            table->count++;
+          //  table->count++;
         }
         
         //reallocate(table->entries, table->capacity * sizeof(Entry), 0);
-        operator delete(table->entries, table->capacity * sizeof(Entry));
+        //operator delete(table->entries, table->capacity * sizeof(Entry));
         table->entries = entries;
-        table->capacity = capacity;
+        //table->capacity = capacity;
     }
     
     bool tableSet(Table* table, ObjectString* key, Value value) {
         std::unique_lock lock{table->_mutex};
-        if (table->count + 1 > table->capacity * TABLE_MAX_LOAD) {
-            int capacity = GROW_CAPACITY(table->capacity);
+        if (table->count + 1 > table->capacity() * TABLE_MAX_LOAD) {
+            int capacity = GROW_CAPACITY(table->capacity());
             adjustCapacity(table, capacity);
         }
-        Entry* entry = findEntry(table->entries, table->capacity, key);
+        Entry* entry = findEntry(table->entries->_data, table->capacity(), key);
         bool isNewKey = (entry->key == NULL);
         if (isNewKey && entry->value.is_nil())
             ++(table->count);
@@ -129,8 +136,8 @@ namespace lox {
     
     void tableAddAll(Table* from, Table* to) {
         std::unique_lock lock{from->_mutex};
-        for (int i = 0; i < from->capacity; i++) {
-            Entry* entry = &from->entries[i];
+        for (int i = 0; i < from->capacity(); i++) {
+            Entry* entry = &from->entries->_data[i];
             if (entry->key != NULL) {
                 tableSet(to, entry->key, entry->value);
             }
@@ -176,9 +183,11 @@ namespace lox {
 
      */
     
+    /*
     void markTable(const Table* table) {
         std::unique_lock lock{table->_mutex};
-        for (int i = 0; i < table->capacity; i++) {
+        //int n = table->capacity();
+        for (int i = 0; i < n; i++) {
             Entry* entry = &table->entries[i];
             // markObject(entry->key);
             // markValue(entry->value);
@@ -186,16 +195,22 @@ namespace lox {
             gc::shade(entry->value.as_object());
         }
     }
+     */
+    void scan(const Table& self, gc::ScanContext& context) {
+        using lox::scan;
+        using gc::scan;
+        scan(self.entries, context);
+    }
     
     void debugTable(Table* table) {
         std::unique_lock lock{table->_mutex};
         printf("struct Table {\n");
         printf("    int count = %d;\n", table->count);
-        printf("    int capacity = %d;\n", table->capacity);
+        printf("    int capacity = %d;\n", table->capacity());
         printf("    Entry* entries = {\n");
-        for (int i = 0; i < table->capacity; i++) {
+        for (int i = 0; i < table->capacity(); i++) {
             printf("        [%d] = { ", i);
-            Entry* entry = &table->entries[i];
+            Entry* entry = &table->entries->_data[i];
             if (entry->key) {
                 printValue(Value(entry->key));
             } else {
@@ -211,8 +226,8 @@ namespace lox {
     void printTable(Table* table) {
         std::unique_lock lock{table->_mutex};
         printf("{\n");
-        for (int i = 0; i < table->capacity; i++) {
-            Entry* entry = &table->entries[i];
+        for (int i = 0; i < table->capacity(); i++) {
+            Entry* entry = &table->entries->_data[i];
             if (entry->key) {
                 printf("\"%s\" : ", entry->key->_data);
                 printValue(entry->value);
@@ -220,6 +235,20 @@ namespace lox {
             }
         }
         printf("}\n");
+    }
+    
+    
+    void Entry::scan(gc::ScanContext& context) const {
+        if (key)
+            key->scan(context);
+        using lox::scan;
+        scan(value, context);
+    }
+
+    
+    int Table::capacity() const {
+        auto p = entries.ptr.ptr.load(std::memory_order_acquire);
+        return p ? (int) p->_capacity : 0;
     }
     
 } // namespace lox

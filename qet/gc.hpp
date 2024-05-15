@@ -53,6 +53,7 @@ namespace gc {
     struct SweepContext;
     template<typename> struct StrongPtr;
     template<typename> struct Atomic;
+    template<typename> struct Array;
     
     void LOG(const char* format, ...);
 
@@ -200,6 +201,15 @@ namespace gc {
     }; // StrongPtr<T>
 
     
+    template<typename T>
+    struct Array final : Object {
+        std::size_t _capacity;
+        T _data[0];
+        static Array* make(std::size_t count);
+        virtual ~Array() override;
+        virtual void scan(ScanContext&) const override;
+    };
+
     struct Global {
         
         // public sequential state
@@ -526,6 +536,33 @@ namespace gc {
         if (object)
             context.push(object);
     }
+    
+    template<typename T>
+    Array<T>::~Array<T>() {
+        std::destroy_n(_data, _capacity);
+    }
+    
+    template<typename T>
+    Array<T>* Array<T>::make(std::size_t n) {
+        Array<T>* p = new(extra_val_t{n * sizeof(T)}) Array<T>;
+        p->_capacity = n;
+        std::uninitialized_value_construct_n(p->_data, p->_capacity);
+        return p;
+    }
+    
+    template<typename T>
+    void Array<T>::scan(ScanContext& context) const {
+        for (std::size_t i = 0; i != _capacity; ++i)
+            _data[i].scan(context);
+    }
+    
+    
+    template<typename T>
+    void scan(const StrongPtr<T>& self, ScanContext& context) {
+        scan(self.ptr.ptr.load(std::memory_order_acquire), context);
+    }
+    
+    
 
 } // namespace gc
 

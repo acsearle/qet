@@ -322,7 +322,7 @@ namespace gc {
             LOG("end transition to allocating BLACK");
             
             // hack some stuff
-            markTable(&lox::gc.strings);
+            //markTable(&lox::gc.strings);
 
 
             // New allocations are BLACK

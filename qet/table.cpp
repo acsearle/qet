@@ -12,6 +12,7 @@
 #include "object.hpp"
 #include "table.hpp"
 #include "value.hpp"
+#include "string.hpp"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -44,7 +45,7 @@ namespace lox {
     }
     
     static Entry* findEntry(Entry* entries, int capacity, ObjectString* key) {
-        uint32_t index = key->hash & (capacity - 1);
+        uint32_t index = key->_hash & (capacity - 1);
         Entry* tombstone = NULL;
         for (;;) {
             Entry* entry = &entries[index];
@@ -136,20 +137,10 @@ namespace lox {
         }
     }
     
+    /*
     ObjectString* tableFindString(Table* table, const char* chars, int length, uint32_t hash) {
         std::unique_lock lock{table->_mutex};
         if (table->count == 0) return NULL;
-        
-        /*
-        for(int i = 0; i != table->capacity; ++i) {
-            Entry* entry = &table->entries[i];
-            if (entry->key) {
-                entry->key->printObject();
-                // printObject(entry->value);
-            }
-        }
-         */
-        
         uint32_t index = hash & (table->capacity - 1);
         for (;;) {
             Entry* entry = &table->entries[index];
@@ -158,14 +149,15 @@ namespace lox {
                 if (entry->value.is_nil()) {
                     return NULL;
                 }
-            } else if (entry->key->length == length &&
-                       entry->key->hash == hash &&
-                       memcmp(entry->key->chars, chars, length) == 0) {
+            } else if (entry->key->_size == length &&
+                       entry->key->_hash == hash &&
+                       memcmp(entry->key->_data, chars, length) == 0) {
                 return entry->key;
             }
             index = (index + 1) & (table->capacity - 1);
         }
     }
+     */
     
     /*
     void tableRemoveWhite(Table* table) {
@@ -222,7 +214,7 @@ namespace lox {
         for (int i = 0; i < table->capacity; i++) {
             Entry* entry = &table->entries[i];
             if (entry->key) {
-                printf("\"%s\" : ", entry->key->chars);
+                printf("\"%s\" : ", entry->key->_data);
                 printValue(entry->value);
                 printf(",\n");
             }

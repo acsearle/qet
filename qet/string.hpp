@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "gc.hpp"
+#include "object.hpp"
 
 namespace gc {
     
@@ -66,20 +67,23 @@ namespace gc {
         struct LNode; // List      : Main
         struct TNode; // Tomb      : Main
         
-        struct ANode : Object {
-            virtual void debug() const = 0;
+        struct ANode : lox::Object {
+            virtual void debug() const override = 0;
             virtual void debug(int lev) const = 0;
+            
+            virtual void printObject() override { printf("gc::_string::ANode"); }
         };
         
         struct BNode : ANode {
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent,
-                                                             const CNode* cn, std::uint64_t flag, int pos) const = 0;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent,
-                                                           const CNode* cn, std::uint64_t flag, int pos) const  = 0;
-            virtual const BNode* _resurrect() const = 0;
-            virtual const MNode* _contract(const CNode* parent, int lev) const = 0;
-            virtual void debug(int lev) const = 0;
-            virtual void debug() const = 0;
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
+                                                             CNode* cn, std::uint64_t flag, int pos) = 0;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent,
+                                                           CNode* cn, std::uint64_t flag, int pos)  = 0;
+            virtual BNode* _resurrect() = 0;
+            virtual MNode* _contract(CNode* parent, int lev) = 0;
+            virtual void debug(int lev) const override = 0;
+            virtual void debug() const override = 0;
+            virtual void printObject() override { printf("gc::_string::BNode"); }
 
         }; // struct BNode
         
@@ -92,12 +96,12 @@ namespace gc {
             static void enter();
             static void leave();
             
-            static const SNode* make(Query q);
-            static const SNode* make(std::string_view v);
-            static const SNode* make(const char*);
-            static const SNode* make(const char*, const char*);
-            static const SNode* make(const char*, std::size_t);
-            static const SNode* make(char);
+            static SNode* make(Query q);
+            static SNode* make(std::string_view v);
+            static SNode* make(const char*);
+            static SNode* make(const char*, const char*);
+            static SNode* make(const char*, std::size_t);
+            static SNode* make(char);
 
             // instance methods
             
@@ -108,9 +112,9 @@ namespace gc {
             
             SNode() = delete;
             ~SNode() = default;
-            SNode(const SNode&) = delete;
+            SNode(SNode&) = delete;
             SNode(SNode&&) = delete;
-            SNode& operator=(const SNode&) = delete;
+            SNode& operator=(SNode&) = delete;
             SNode& operator=(SNode&&) = delete;
             
             explicit SNode(Query);
@@ -126,18 +130,22 @@ namespace gc {
             // Ctrie node methods
             
             virtual void debug(int lev) const override;
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent,
-                                                             const CNode* cn, std::uint64_t flag, int pos) const override;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent,
-                                                           const CNode* cn, std::uint64_t flag, int pos) const override;
-            virtual const BNode* _resurrect() const override ;
-            virtual const MNode* _contract(const CNode* cn, int lev) const override;
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
+                                                             CNode* cn, std::uint64_t flag, int pos) override;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent,
+                                                           CNode* cn, std::uint64_t flag, int pos) override;
+            virtual BNode* _resurrect() override ;
+            virtual MNode* _contract(CNode* cn, int lev) override;
             
             std::size_t _hash;
             std::size_t _size;
             char _data[0];
             
             virtual void debug() const override;
+            virtual void printObject() override { // printf("gc::_string::SNode");
+                printf("%.*s", (int) _size, _data);
+            }
+
             
             // string methods
             
@@ -163,14 +171,14 @@ namespace gc {
             
             struct KeyEqual {
                 using is_transparent = void;
-                bool operator()(const SNode* a, const SNode* b) const {
+                bool operator()(SNode* a, SNode* b) const {
                     // A hash table should only be checking equality when the hashes are equal
                     assert(a->_hash == b->_hash);
                     // equivalence implies identity
                     assert((a->view() == b->view()) == (a == b));
                     return a == b;
                 }
-                bool operator()(const SNode* a, Query b) const {
+                bool operator()(SNode* a, Query b) const {
                     // A hash table should only be checking equality when the hashes are equal
                     assert(a->_hash == b.hash);
                     return a->view() == b.view;
@@ -181,7 +189,8 @@ namespace gc {
         
     } // namespace _string
     
-    using String = _string::SNode;
+    // using String = _string::SNode;
+    //using ObjectString = _string::SNode;
     
 } // namespace gc
 

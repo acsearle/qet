@@ -98,34 +98,34 @@ namespace gc {
             };
             
             struct BNode : ANode {
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent,
-                                     const CNode* cn, std::uint64_t flag, int pos) const = 0;
-                virtual Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent,
-                                                 const CNode* cn, std::uint64_t flag, int pos) const = 0;
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent,
-                                      const CNode* cn, std::uint64_t flag, int pos) const  = 0;
-                virtual const BNode* _resurrect() const = 0;
-                virtual const MNode* _contract(const CNode* parent, int lev) const = 0;
+                virtual Result _find(INode* i, Key k, int lev, INode* parent,
+                                     CNode* cn, std::uint64_t flag, int pos) const = 0;
+                virtual Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent,
+                                                 CNode* cn, std::uint64_t flag, int pos) const = 0;
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent,
+                                      CNode* cn, std::uint64_t flag, int pos) const  = 0;
+                virtual BNode* _resurrect() const = 0;
+                virtual MNode* _contract(CNode* parent, int lev) const = 0;
             }; // struct BNode
             
             struct MNode : ANode {
                 
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent) const = 0;
-                virtual Result _insert_or_assign(const INode* i, Key k, T value, int lev, const INode* parent) const = 0;
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent) const = 0;
-                virtual void _erase2(const INode* i, Key k, int lev, const INode* parent) const {}
-                virtual const BNode* _resurrect(const INode* parent) const { return parent; }
-                virtual void vcleanA(const INode* i, int lev) const {}
-                virtual bool vcleanParentA(const INode* p, const INode* i, std::size_t hc, int lev,
-                                           const MNode* m) const { return true; }
-                virtual bool vcleanParentB(const INode* p, const INode* i, std::size_t hc, int lev,
-                                           const MNode* m,
-                                           const CNode* cn, std::uint64_t flag, int pos) const { return true; }
+                virtual Result _find(INode* i, Key k, int lev, INode* parent) const = 0;
+                virtual Result _insert_or_assign(INode* i, Key k, T value, int lev, INode* parent) const = 0;
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent) const = 0;
+                virtual void _erase2(INode* i, Key k, int lev, INode* parent) const {}
+                virtual BNode* _resurrect(INode* parent) const { return parent; }
+                virtual void vcleanA(INode* i, int lev) const {}
+                virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
+                                           MNode* m) const { return true; }
+                virtual bool vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
+                                           MNode* m,
+                                           CNode* cn, std::uint64_t flag, int pos) const { return true; }
             }; // struct MNode
             
             struct INode : BNode {
-                mutable Atomic<StrongPtr<const MNode>> main;
-                explicit INode(const MNode* desired) : main(desired) {}
+                mutable Atomic<StrongPtr<MNode>> main;
+                explicit INode(MNode* desired) : main(desired) {}
                 virtual void debug(int lev) const override {
                     auto p =  main.load(ACQUIRE);
                     printf("INode(%lx): ",this->color.load(RELAXED));
@@ -134,22 +134,22 @@ namespace gc {
                 virtual void scan(ScanContext& context) const override {
                     context.push(main);
                 }
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent,
-                                     const CNode* cn, std::uint64_t flag, int pos) const override {
+                virtual Result _find(INode* i, Key k, int lev, INode* parent,
+                                     CNode* cn, std::uint64_t flag, int pos) const override {
                     return Ctrie::_find(this, k, lev + 6, i);
                 }
-                virtual Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent,
-                                                 const CNode* cn, std::uint64_t flag, int pos) const override {
+                virtual Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent,
+                                                 CNode* cn, std::uint64_t flag, int pos) const override {
                     return Ctrie::_insert_or_assign(this, k, v, lev + 6, i);
                 }
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent,
-                                      const CNode* cn, std::uint64_t flag, int pos) const override{
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent,
+                                      CNode* cn, std::uint64_t flag, int pos) const override{
                     return Ctrie::_erase(this, k, lev + 6, i);
                 }
-                virtual const BNode* _resurrect() const override {
+                virtual BNode* _resurrect() const override {
                     return this->main.load(ACQUIRE)->_resurrect(this);
                 }
-                virtual const MNode* _contract(const CNode* cn, int lev) const override {
+                virtual MNode* _contract(CNode* cn, int lev) const override {
                     return cn;
                 }
                 
@@ -170,25 +170,25 @@ namespace gc {
                 virtual void debug(int lev) const override {
                     printf("SNode(%lx)\n", this->color.load(RELAXED));
                 }
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent,
-                                     const CNode* cn, std::uint64_t flag, int pos) const override {
+                virtual Result _find(INode* i, Key k, int lev, INode* parent,
+                                     CNode* cn, std::uint64_t flag, int pos) const override {
                     if (this->key == k) {
                         return Ok(value);
                     } else {
                         return NotFound();
                     }
                 }
-                virtual Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent,
-                                                 const CNode* cn, std::uint64_t flag, int pos) const override {
-                    const SNode* nsn = new SNode(k, v);
-                    const CNode* ncn;
+                virtual Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent,
+                                                 CNode* cn, std::uint64_t flag, int pos) const override {
+                    SNode* nsn = new SNode(k, v);
+                    CNode* ncn;
                     if (this->key != k) {
-                        const INode* nin = new INode(CNode::make(this, nsn, lev + 6));
+                        INode* nin = new INode(CNode::make(this, nsn, lev + 6));
                         ncn = cn->updated(pos, nin);
                     } else {
                         ncn = cn->updated(pos, nsn);
                     }
-                    const MNode* expected = cn;
+                    MNode* expected = cn;
                     if (i->main.compare_exchange_strong(expected,
                                                         ncn,
                                                         RELEASE,
@@ -199,13 +199,13 @@ namespace gc {
                     }
                 }
                 
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent,
-                                      const CNode* cn, std::uint64_t flag, int pos) const override  {
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent,
+                                      CNode* cn, std::uint64_t flag, int pos) const override  {
                     if (this->key != k)
                         return NotFound();
-                    const CNode* ncn = cn->removed(pos, flag);
-                    const MNode* cntr = toContracted(ncn, lev);
-                    const MNode* expected = cn;
+                    CNode* ncn = cn->removed(pos, flag);
+                    MNode* cntr = toContracted(ncn, lev);
+                    MNode* expected = cn;
                     if (i->main.compare_exchange_strong(expected,
                                                         cntr,
                                                         RELEASE,
@@ -216,18 +216,18 @@ namespace gc {
                     }
                 }
                 
-                virtual const BNode* _resurrect() const override {
+                virtual BNode* _resurrect() const override {
                     return this;
                 }
-                virtual const MNode* _contract(const CNode* cn, int lev) const override {
-                    const SNode* sn = this;
+                virtual MNode* _contract(CNode* cn, int lev) const override {
+                    SNode* sn = this;
                     return entomb(sn);
                 }
                 
             }; // struct SNode
             
             struct TNode : MNode {
-                const SNode* sn;
+                SNode* sn;
                 
                 virtual void debug(int lev) const override {
                     printf("TNode(%lx): ", this->color.load(RELAXED));
@@ -236,39 +236,39 @@ namespace gc {
                 virtual void scan(ScanContext& context) const override {
                     context.push(sn);
                 }
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual Result _find(INode* i, Key k, int lev, INode* parent) const override {
                     clean(parent, lev - 6);
                     return Restart();
                 }
-                virtual Result _insert_or_assign(const INode* i, Key k, T value, int lev, const INode* parent) const override {
+                virtual Result _insert_or_assign(INode* i, Key k, T value, int lev, INode* parent) const override {
                     clean(parent, lev - 6);
                     return Restart();
                 }
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent) const override {
                     clean(parent, lev - 6);
                     return Restart();
                 }
-                virtual void _erase2(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual void _erase2(INode* i, Key k, int lev, INode* parent) const override {
                     cleanParent(parent, i, Hash{}(k), lev - 6);
                 }
-                virtual bool vcleanParentB(const INode* p, const INode* i, std::size_t hc, int lev,
-                                           const MNode* m,
-                                           const CNode* cn, std::uint64_t flag, int pos) const override {
-                    const CNode* ncn = cn->updated(pos, this->sn);
-                    const MNode* expected = cn;
-                    const MNode* desired = toContracted(ncn, lev);
+                virtual bool vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
+                                           MNode* m,
+                                           CNode* cn, std::uint64_t flag, int pos) const override {
+                    CNode* ncn = cn->updated(pos, this->sn);
+                    MNode* expected = cn;
+                    MNode* desired = toContracted(ncn, lev);
                     return p->main.compare_exchange_strong(expected,
                                                            desired,
                                                            RELEASE,
                                                            RELAXED);
                 }
-                virtual const BNode* _resurrect(const INode* parent) const override {
+                virtual BNode* _resurrect(INode* parent) const override {
                     return sn;
                 }
             }; // struct TNode
             
             struct LNode : MNode {
-                const SNode* sn;
+                SNode* sn;
                 const LNode* next;
                 virtual void debug(int lev) const override {
                     printf("LNode(%lx,%p): ", this->color.load(RELAXED), sn);
@@ -291,7 +291,7 @@ namespace gc {
                         ln = ln->next;
                     }
                 }
-                const MNode* inserted(Key k, T v) const  {
+                MNode* inserted(Key k, T v) const  {
                     const LNode* a = this;
                     for (;;) {
                         if (a->sn->key == k) {
@@ -365,12 +365,12 @@ namespace gc {
                     }
                 }
                 
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual Result _find(INode* i, Key k, int lev, INode* parent) const override {
                     return lookup(k);
                 }
-                virtual Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent) const override {
+                virtual Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent) const override {
                     // printf("LNode %lx,%p iinsert\n", this->color.load(RELAXED), this);
-                    const MNode* expected = this;
+                    MNode* expected = this;
                     if (i->main.compare_exchange_strong(expected,
                                                         inserted(k, v),
                                                         RELEASE,
@@ -380,12 +380,12 @@ namespace gc {
                         return Restart();
                     }
                 }
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent) const override {
                     const LNode* ln = this;
                     auto [nln, v] = ln->removed(k);
                     assert(nln && nln->sn);
-                    const MNode* expected = ln;
-                    const MNode* desired = nln->next ? nln : entomb(nln->sn);
+                    MNode* expected = ln;
+                    MNode* desired = nln->next ? nln : entomb(nln->sn);
                     if (i->main.compare_exchange_strong(expected,
                                                         desired,
                                                         RELEASE,
@@ -400,7 +400,7 @@ namespace gc {
             struct CNode : MNode {
                 
                 std::uint64_t bmp;
-                const BNode* array[0];
+                BNode* array[0];
                 
                 static std::pair<std::uint64_t, int> flagpos(std::size_t hash, int lev, std::uint64_t bmp) {
                     auto a = (hash >> lev) & 63;
@@ -409,7 +409,7 @@ namespace gc {
                     return std::pair(flag, pos);
                 }
                 
-                static const CNode* make(const SNode* sn1, const SNode* sn2, int lev) {
+                static CNode* make(SNode* sn1, SNode* sn2, int lev) {
                     assert(sn1->key != sn2->key);
                     // distinct keys but potentially the same hash
                     auto a1 = (Hash{}(sn1->key) >> lev) & 63;
@@ -477,7 +477,7 @@ namespace gc {
                     }
                 }
                 
-                const CNode* inserted(std::uint64_t flag, int pos, const BNode* child) const {
+                CNode* inserted(std::uint64_t flag, int pos, BNode* child) const {
                     //printf("CNode inserted\n");
                     auto n = __builtin_popcountll(bmp);
                     CNode* b = new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
@@ -493,7 +493,7 @@ namespace gc {
                     return b;
                 }
                 
-                const CNode* updated(int pos, const BNode* child) const {
+                CNode* updated(int pos, BNode* child) const {
                     //printf("CNode updated\n");
                     auto n = __builtin_popcountll(bmp);
                     CNode* b = new (extra_val_t{sizeof(BNode*) * n}) CNode;
@@ -507,7 +507,7 @@ namespace gc {
                     return b;
                 }
                 
-                const CNode* removed(int pos, std::uint64_t flag) const {
+                CNode* removed(int pos, std::uint64_t flag) const {
                     assert(this->bmp & flag);
                     assert(__builtin_popcountll((flag - 1) & this->bmp) == pos);
                     auto n = __builtin_popcountll(bmp);
@@ -523,8 +523,8 @@ namespace gc {
                     return b;
                 }
                 
-                virtual Result _find(const INode* i, Key k, int lev, const INode* parent) const override {
-                    const CNode* cn = this;
+                virtual Result _find(INode* i, Key k, int lev, INode* parent) const override {
+                    CNode* cn = this;
                     auto [flag, pos] = flagpos(Hash{}(k), lev, cn->bmp);
                     if (!(flag & cn->bmp)) {
                         return {OK, nullptr};
@@ -533,13 +533,13 @@ namespace gc {
                     }
                 }
                 
-                virtual Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent) const override {
-                    const CNode* cn = this;
+                virtual Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent) const override {
+                    CNode* cn = this;
                     auto [flag, pos] = flagpos(Hash{}(k), lev, cn->bmp);
                     if (!(flag & cn->bmp)) {
-                        const MNode* expected = this;
-                        const SNode* sn =  new SNode(k, v);
-                        const MNode* desired = inserted(flag, pos, sn);
+                        MNode* expected = this;
+                        SNode* sn =  new SNode(k, v);
+                        MNode* desired = inserted(flag, pos, sn);
                         if (i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED)) {
                             return Ok(sn->value);
                         } else {
@@ -550,12 +550,12 @@ namespace gc {
                     }
                 }
                 
-                virtual Result _erase(const INode* i, Key k, int lev, const INode* parent) const override {
+                virtual Result _erase(INode* i, Key k, int lev, INode* parent) const override {
                     auto [flag, pos] = flagpos(Hash{}(k), lev, bmp);
                     if (!(flag & bmp)) {
                         return NotFound();
                     }
-                    const BNode* sub = array[pos];
+                    BNode* sub = array[pos];
                     assert(sub);
                     Result result = sub->_erase(i, k, lev, parent, this, flag, pos);
                     if (result.tag == OK) {
@@ -564,20 +564,20 @@ namespace gc {
                     return result;
                 }
                 
-                virtual void vcleanA(const INode* i, int lev) const override {
-                    const CNode* m = this;
-                    const MNode* expected = m;
-                    const MNode* desired = toCompressed(m, lev);
+                virtual void vcleanA(INode* i, int lev) const override {
+                    CNode* m = this;
+                    MNode* expected = m;
+                    MNode* desired = toCompressed(m, lev);
                     i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED);
                 }
                 
-                virtual bool vcleanParentA(const INode* p, const INode* i, std::size_t hc, int lev,
-                                           const MNode* m) const override {
-                    const CNode* cn = this;
+                virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
+                                           MNode* m) const override {
+                    CNode* cn = this;
                     auto [flag, pos] = flagpos(hc, lev, this->bmp);
                     if (!(flag & bmp))
                         return true;
-                    const BNode* sub = this->array[pos];
+                    BNode* sub = this->array[pos];
                     if (sub != i)
                         return true;
                     return m->vcleanParentB(p, i, hc, lev, m, cn, flag, pos);
@@ -585,11 +585,11 @@ namespace gc {
                 
             }; // struct CNode
             
-            static const BNode* resurrect(const BNode* m) {
+            static BNode* resurrect(BNode* m) {
                 return m->_resurrect();
             }
             
-            static const MNode* toCompressed(const CNode* cn, int lev) {
+            static MNode* toCompressed(CNode* cn, int lev) {
                 int num = __builtin_popcountll(cn->bmp);
                 CNode* ncn = new (extra_val_t{sizeof(BNode*) * num}) CNode;
                 ncn->bmp = cn->bmp;
@@ -602,42 +602,42 @@ namespace gc {
                 return toContracted(ncn, lev);
             }
             
-            static const MNode* toContracted(const CNode* cn, int lev) {
+            static MNode* toContracted(CNode* cn, int lev) {
                 int num = __builtin_popcountll(cn->bmp);
                 if (lev == 0 || num > 1)
                     return cn;
                 return cn->array[0]->_contract(cn, lev);
             }
             
-            static void clean(const INode* i, int lev) {
+            static void clean(INode* i, int lev) {
                 i->main.load(ACQUIRE)->vcleanA(i, lev);
             }
             
-            static void cleanParent(const INode* p, const INode* i, std::size_t hc, int lev) {
+            static void cleanParent(INode* p, INode* i, std::size_t hc, int lev) {
                 for (;;) {
-                    const MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
-                    const MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
+                    MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
+                    MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
                     if (pm->vcleanParentA(p, i, hc, lev, m))
                         return;
                 }
             }
             
-            static const MNode* entomb(const SNode* sn) {
+            static MNode* entomb(SNode* sn) {
                 TNode* tn = new TNode;
                 tn->sn = sn;
                 gc::shade(sn);
                 return tn;
             }
             
-            static Result _find(const INode* i, Key k, int lev, const INode* parent) {
+            static Result _find(INode* i, Key k, int lev, INode* parent) {
                 return i->main.load(ACQUIRE)->_find(i, k, lev, parent);
             }
             
-            static Result _insert_or_assign(const INode* i, Key k, T v, int lev, const INode* parent) {
+            static Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent) {
                 return i->main.load(ACQUIRE)->_insert_or_assign(i, k, v, lev, parent);
             }
             
-            static Result _erase(const INode* i, Key k, int lev, const INode* parent) {
+            static Result _erase(INode* i, Key k, int lev, INode* parent) {
                 return i->main.load(ACQUIRE)->_erase(i, k, lev, parent);
             }
             

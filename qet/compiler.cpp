@@ -13,6 +13,7 @@
 #include "compiler.hpp"
 #include "opcodes.hpp"
 #include "tokenizer.hpp"
+#include "string.hpp"
 
 #ifdef LOX_DEBUG_PRINT_CODE
 #include "debug.hpp"
@@ -329,7 +330,7 @@ namespace lox {
             
 #ifdef LOX_DEBUG_PRINT_CODE
             if (!compiler->parser->hadError) {
-                disassembleChunk(compiler->chunk(), function->name != NULL ? function->name->chars : "<script>");
+                disassembleChunk(compiler->chunk(), function->name != NULL ? function->name->_data : "<script>");
             }
 #endif
             return function;

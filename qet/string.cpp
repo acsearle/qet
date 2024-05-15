@@ -23,90 +23,90 @@ namespace gc {
     namespace _string {
         
         
-        void clean(const INode* i, int lev);
-        void cleanParent(const INode* p, const INode* i, std::size_t hc, int lev);
-        const MNode* entomb(const SNode* sn);
-        std::pair<Result, const SNode*> ilookup(const INode* i, Query q, int lev, const INode* parent);
-        std::pair<Result, const SNode*> iinsert(const INode* i, Query q, int lev, const INode* parent);
-        std::pair<Result, const SNode*> iremove(const INode* i, const SNode* k, int lev, const INode* parent);
-        const BNode* resurrect(const BNode* m);
-        const MNode* toCompressed(const CNode* cn, int lev);
-        const MNode* toContracted(const CNode* cn, int lev);
+        void clean(INode* i, int lev);
+        void cleanParent(INode* p, INode* i, std::size_t hc, int lev);
+        MNode* entomb(SNode* sn);
+        std::pair<Result, SNode*> ilookup(INode* i, Query q, int lev, INode* parent);
+        std::pair<Result, SNode*> iinsert(INode* i, Query q, int lev, INode* parent);
+        std::pair<Result, SNode*> iremove(INode* i, SNode* k, int lev, INode* parent);
+        BNode* resurrect(BNode* m);
+        MNode* toCompressed(CNode* cn, int lev);
+        MNode* toContracted(CNode* cn, int lev);
         
         struct MNode : ANode {
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent) const = 0;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent) const = 0;
-            virtual void _erase2(const INode* i, const SNode* k, int lev, const INode* parent) const {};
-            virtual const BNode* _resurrect(const INode* parent) const;
-            virtual void vcleanA(const INode* i, int lev) const {}
-            virtual bool vcleanParentA(const INode* p, const INode* i, std::size_t hc, int lev,
-                                       const MNode* m) const { return true; }
-            virtual bool vcleanParentB(const INode* p, const INode* i, std::size_t hc, int lev,
-                                       const MNode* m,
-                                       const CNode* cn, std::uint64_t flag, int pos) const { return true; }
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) = 0;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) = 0;
+            virtual void _erase2(INode* i, SNode* k, int lev, INode* parent) {};
+            virtual BNode* _resurrect(INode* parent);
+            virtual void vcleanA(INode* i, int lev) {}
+            virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
+                                       MNode* m) { return true; }
+            virtual bool vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
+                                       MNode* m,
+                                       CNode* cn, std::uint64_t flag, int pos) { return true; }
             virtual void debug() const override = 0;
             virtual void debug(int lev) const override = 0;
         }; // struct MNode
         
         struct INode : BNode {
-            explicit INode(const MNode* desired);
+            explicit INode(MNode* desired);
             virtual void debug(int lev) const override;
             virtual void scan(ScanContext& context) const override ;
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent,
-                                                             const CNode* cn, std::uint64_t flag, int pos) const override;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent,
-                                                           const CNode* cn, std::uint64_t flag, int pos) const override;
-            virtual const BNode* _resurrect() const override;
-            virtual const MNode* _contract(const CNode* cn, int lev) const override;
-            mutable Atomic<StrongPtr<const MNode>> main;
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
+                                                             CNode* cn, std::uint64_t flag, int pos) override;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent,
+                                                           CNode* cn, std::uint64_t flag, int pos) override;
+            virtual BNode* _resurrect() override;
+            virtual MNode* _contract(CNode* cn, int lev) override;
+            mutable Atomic<StrongPtr<MNode>> main;
             virtual void debug() const override { printf("%p gc::_string::INode\n", this); }
         }; // struct INode
         
         struct TNode : MNode {
             virtual void debug(int lev) const override;
             virtual void scan(ScanContext& context) const override;
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent) const override;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent) const override;
-            virtual void _erase2(const INode* i, const SNode* k, int lev, const INode* parent) const override;
-            virtual bool vcleanParentB(const INode* p, const INode* i, std::size_t hc, int lev,
-                                       const MNode* m,
-                                       const CNode* cn, std::uint64_t flag, int pos) const override;
-            virtual const BNode* _resurrect(const INode* parent) const override;
-            const SNode* sn;
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) override;
+            virtual void _erase2(INode* i, SNode* k, int lev, INode* parent) override;
+            virtual bool vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
+                                       MNode* m,
+                                       CNode* cn, std::uint64_t flag, int pos) override;
+            virtual BNode* _resurrect(INode* parent) override;
+            SNode* sn;
             virtual void debug() const override { printf("%p gc::_string::TNode\n", this); }
         }; // struct TNode
         
         struct LNode : MNode {
             virtual void debug(int lev) const override;
             virtual void scan(ScanContext& context) const override;
-            std::pair<Result, const SNode*> lookup(Query q) const;
-            const MNode* inserted(Query q) const;
-            std::pair<const LNode*, const SNode*> removed(const SNode* k) const;
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent) const override;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent) const override;
-            const SNode* sn;
-            const LNode* next;
+            std::pair<Result, SNode*> lookup(Query q);
+            MNode* inserted(Query q);
+            std::pair<LNode*, SNode*> removed(SNode* k);
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) override;
+            SNode* sn;
+            LNode* next;
             virtual void debug() const override { printf("%p gc::_string::LNode\n", this); }
         }; // struct LNode
         
         
         struct CNode : MNode {
             static std::pair<std::uint64_t, int> flagpos(std::size_t hash, int lev, std::uint64_t bmp);
-            static const CNode* make(const SNode* sn1, const SNode* sn2, int lev);
+            static CNode* make(SNode* sn1, SNode* sn2, int lev);
             CNode();
             virtual void debug(int lev) const override;
             virtual void scan(ScanContext& context) const override;
-            const CNode* inserted(std::uint64_t flag, int pos, const BNode* child) const;
-            const CNode* updated(int pos, const BNode* child) const;
-            const CNode* removed(int pos, std::uint64_t flag) const;
-            virtual std::pair<Result, const SNode*> _emplace(const INode* i, Query q, int lev, const INode* parent) const override;
-            virtual std::pair<Result, const SNode*> _erase(const INode* i, const SNode* k, int lev, const INode* parent) const override;
-            virtual void vcleanA(const INode* i, int lev) const override;
-            virtual bool vcleanParentA(const INode* p, const INode* i, std::size_t hc, int lev,
-                                       const MNode* m) const override ;
+            CNode* inserted(std::uint64_t flag, int pos, BNode* child) const;
+            CNode* updated(int pos, BNode* child) const;
+            CNode* removed(int pos, std::uint64_t flag) const;
+            virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
+            virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) override;
+            virtual void vcleanA(INode* i, int lev) override;
+            virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
+                                       MNode* m) override ;
             virtual void debug() const override;
             std::uint64_t bmp;
-            const BNode* array[0];
+            BNode* array[0];
         }; // struct CNode
         
         
@@ -117,8 +117,8 @@ namespace gc {
             void debug();
             
             virtual void scan(ScanContext& context) const override;
-            const SNode* emplace(Query q);
-            const SNode* remove(const SNode* k);
+            SNode* emplace(Query q);
+            SNode* remove(SNode* k);
             
             INode* root;
             
@@ -128,11 +128,11 @@ namespace gc {
         Ctrie* global_string_ctrie = nullptr;
         
         
-        const BNode* resurrect(const BNode* m) {
+        BNode* resurrect(BNode* m) {
             return m->_resurrect();
         }
         
-        const MNode* toCompressed(const CNode* cn, int lev) {
+        MNode* toCompressed(CNode* cn, int lev) {
             int num = __builtin_popcountll(cn->bmp);
             CNode* ncn = new (extra_val_t{sizeof(BNode*) * num}) CNode;
             ncn->bmp = cn->bmp;
@@ -145,27 +145,27 @@ namespace gc {
             return toContracted(ncn, lev);
         }
         
-        const MNode* toContracted(const CNode* cn, int lev) {
+        MNode* toContracted(CNode* cn, int lev) {
             int num = __builtin_popcountll(cn->bmp);
             if (lev == 0 || num > 1)
                 return cn;
             return cn->array[0]->_contract(cn, lev);
         }
         
-        void clean(const INode* i, int lev) {
+        void clean(INode* i, int lev) {
             i->main.load(ACQUIRE)->vcleanA(i, lev);
         }
         
-        void cleanParent(const INode* p, const INode* i, std::size_t hc, int lev) {
+        void cleanParent(INode* p, INode* i, std::size_t hc, int lev) {
             for (;;) {
-                const MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
-                const MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
+                MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
+                MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
                 if (pm->vcleanParentA(p, i, hc, lev, m))
                     return;
             }
         }
         
-        const MNode* entomb(const SNode* sn) {
+        MNode* entomb(SNode* sn) {
             TNode* tn = new TNode;
             tn->sn = sn;
             // gc::shade(sn);
@@ -176,11 +176,11 @@ namespace gc {
         
         
         
-        const BNode* MNode::_resurrect(const INode* parent) const { return parent; };
+        BNode* MNode::_resurrect(INode* parent) { return parent; };
         
         
         
-        INode::INode(const MNode* desired) : main(desired) {}
+        INode::INode(MNode* desired) : main(desired) {}
         
         void INode::debug(int lev) const {
             auto p =  main.load(ACQUIRE);
@@ -193,27 +193,31 @@ namespace gc {
             context.push(main);
         }
         
-        std::pair<Result, const SNode*> INode::_emplace(const INode* i, Query q, int lev, const INode* parent,
-                                                        const CNode* cn, std::uint64_t flag, int pos) const {
+        std::pair<Result, SNode*> INode::_emplace(INode* i, Query q, int lev, INode* parent,
+                                                        CNode* cn, std::uint64_t flag, int pos) {
             return iinsert(this, q, lev + 6, i);
         }
         
-        std::pair<Result, const SNode*> INode::_erase(const INode* i, const SNode* k, int lev, const INode* parent,
-                                                      const CNode* cn, std::uint64_t flag, int pos) const {
+        std::pair<Result, SNode*> INode::_erase(INode* i, SNode* k, int lev, INode* parent,
+                                                      CNode* cn, std::uint64_t flag, int pos) {
             return iremove(this, k, lev + 6, i);
         }
         
-        const BNode* INode::_resurrect() const {
+        BNode* INode::_resurrect() {
             return this->main.load(ACQUIRE)->_resurrect(this);
         }
         
-        const MNode* INode::_contract(const CNode* cn, int lev) const {
+        MNode* INode::_contract(CNode* cn, int lev) {
             return cn;
         }
         
         
-        const SNode* SNode::make(Query q) {
+        SNode* SNode::make(Query q) {
             return global_string_ctrie->emplace(q);
+        }
+        
+        SNode* SNode::make(const char * data, std::size_t size) {
+            return make(Query(std::string_view(data, size)));
         }
         
         
@@ -221,6 +225,7 @@ namespace gc {
         : _hash(q.hash)
         , _size(q.view.size()) {
             std::memcpy(_data, q.view.data(), _size);
+            _data[_size] = '\0';
         }
         
         void SNode::debug(int lev) const {
@@ -246,7 +251,19 @@ namespace gc {
         
         void SNode::scan(ScanContext& context) const {
             // no-op; SNode has no members
-            __builtin_trap();
+            // __builtin_trap();
+            // TODO: SNode is a leaf; it shades black directly and need not
+            // be scanned.  The trap above implies at some point I thought that
+            // it would never get into a ScanContext.
+            //
+            // If an SNode is shaded, it goes black directly and bypasses the
+            // GRAY check
+            //
+            // However, if SNode is reached first by the collector, it is
+            // shaded WHITE -> BLACK and unconditionally added to the list?
+            //
+            // Rethink who gets to decide this, and how it relates to strong
+            // and weak links
         }
         
         void SNode::scan_weak(ScanContext& context) const {
@@ -281,9 +298,9 @@ namespace gc {
             }
         }
         
-        std::pair<Result, const SNode*> SNode::_emplace(const INode* i, Query q, int lev, const INode* parent,
-                                                        const CNode* cn, std::uint64_t flag, int pos) const {
-            const SNode* sn = this;
+        std::pair<Result, SNode*> SNode::_emplace(INode* i, Query q, int lev, INode* parent,
+                                                        CNode* cn, std::uint64_t flag, int pos) {
+            SNode* sn = this;
             bool equivalent = sn->_hash == q.hash && sn->view() == q.view;
             if (equivalent) {
                 Color expected = local.WHITE;
@@ -296,12 +313,12 @@ namespace gc {
                 }
             }
             // We must install a new node
-            const SNode* nsn = new (extra_val_t{q.view.size()}) SNode(q);
-            const CNode* ncn = cn->updated(pos,
+            SNode* nsn = new (extra_val_t{q.view.size()+1}) SNode(q);
+            CNode* ncn = cn->updated(pos,
                                            (equivalent
-                                            ? (const BNode*) nsn
-                                            : (const BNode*) new INode(CNode::make(sn, nsn, lev + 6))));
-            const MNode* expected = cn;
+                                            ? (BNode*) nsn
+                                            : (BNode*) new INode(CNode::make(sn, nsn, lev + 6))));
+            MNode* expected = cn;
             if (i->main.compare_exchange_strong(expected,
                                                 ncn,
                                                 RELEASE,
@@ -314,13 +331,13 @@ namespace gc {
         
         
         
-        std::pair<Result, const SNode*> SNode::_erase(const INode* i, const SNode* k, int lev, const INode* parent,
-                                                      const CNode* cn, std::uint64_t flag, int pos) const {
+        std::pair<Result, SNode*> SNode::_erase(INode* i, SNode* k, int lev, INode* parent,
+                                                      CNode* cn, std::uint64_t flag, int pos) {
             if (this != k)
                 return std::pair(OK, nullptr);
-            const CNode* ncn = cn->removed(pos, flag);
-            const MNode* cntr = toContracted(ncn, lev);
-            const MNode* expected = cn;
+            CNode* ncn = cn->removed(pos, flag);
+            MNode* cntr = toContracted(ncn, lev);
+            MNode* expected = cn;
             if (i->main.compare_exchange_strong(expected,
                                                 cntr,
                                                 RELEASE,
@@ -331,12 +348,12 @@ namespace gc {
             }
         }
         
-        const BNode* SNode::_resurrect() const {
+        BNode* SNode::_resurrect() {
             return this;
         }
         
-        const MNode* SNode::_contract(const CNode* cn, int lev) const {
-            const SNode* sn = this;
+        MNode* SNode::_contract(CNode* cn, int lev) {
+            SNode* sn = this;
             return entomb(sn);
         }
         
@@ -345,13 +362,13 @@ namespace gc {
         void SNode::enter() {
             assert(global_string_ctrie == nullptr);
             global_string_ctrie = new Ctrie;
-            // TODO: global roots should be a thread-safe set?
+            // TODO: global roots should be a thread-safe set
             global.roots.push_back(global_string_ctrie);
         }
         
         void SNode::leave() {
             assert(global_string_ctrie != nullptr);
-            // TODO: global roots should be a thread-safe set?
+            // TODO: global roots should be a thread-safe set
             // TODO: global.roots.erase(global_string_ctrie)
             global_string_ctrie = nullptr;
         }
@@ -367,33 +384,33 @@ namespace gc {
             context.push(sn);
         }
         
-        std::pair<Result, const SNode*> TNode::_emplace(const INode* i, Query q, int lev, const INode* parent) const {
+        std::pair<Result, SNode*> TNode::_emplace(INode* i, Query q, int lev, INode* parent) {
             clean(parent, lev - 6);
             return {RESTART, nullptr};
         }
         
-        std::pair<Result, const SNode*> TNode::_erase(const INode* i, const SNode* k, int lev, const INode* parent) const {
+        std::pair<Result, SNode*> TNode::_erase(INode* i, SNode* k, int lev, INode* parent) {
             clean(parent, lev - 6);
             return {RESTART, nullptr};
         }
         
-        const BNode* TNode::_resurrect(const INode* parent) const {
+        BNode* TNode::_resurrect(INode* parent) {
             return sn;
         }
         
-        bool TNode::vcleanParentB(const INode* p, const INode* i, std::size_t hc, int lev,
-                                  const MNode* m,
-                                  const CNode* cn, std::uint64_t flag, int pos) const {
-            const CNode* ncn = cn->updated(pos, this->sn);
-            const MNode* expected = cn;
-            const MNode* desired = toContracted(ncn, lev);
+        bool TNode::vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
+                                  MNode* m,
+                                  CNode* cn, std::uint64_t flag, int pos) {
+            CNode* ncn = cn->updated(pos, this->sn);
+            MNode* expected = cn;
+            MNode* desired = toContracted(ncn, lev);
             return p->main.compare_exchange_strong(expected,
                                                    desired,
                                                    RELEASE,
                                                    RELAXED);
         }
         
-        void TNode::_erase2(const INode* i, const SNode* k, int lev, const INode* parent) const {
+        void TNode::_erase2(INode* i, SNode* k, int lev, INode* parent) {
             cleanParent(parent, i, k->_hash, lev - 6);
         }
         
@@ -412,7 +429,7 @@ namespace gc {
             context.push(next);
         }
         
-        std::pair<Result, const SNode*> LNode::lookup(Query q) const {
+        std::pair<Result, SNode*> LNode::lookup(Query q) {
             const LNode* ln = this;
             for (;;) {
                 if (!ln)
@@ -423,7 +440,7 @@ namespace gc {
             }
         }
         
-        const MNode* LNode::inserted(Query q) const {
+        MNode* LNode::inserted(Query q) {
             const LNode* a = this;
             for (;;) {
                 if (a->sn->view() == q.view) {
@@ -442,7 +459,7 @@ namespace gc {
                             d->next = e;
                             d = e;
                         } else {
-                            d->sn = new (extra_val_t{q.view.size()}) SNode(q);
+                            d->sn = new (extra_val_t{q.view.size()+1}) SNode(q);
                             d->next = b->next;
                             gc::shade(d->next);
                             return c;
@@ -454,7 +471,7 @@ namespace gc {
                 if (a == nullptr) {
                     // We did not find the same key, so just prepend it
                     LNode* b = new LNode;
-                    b->sn = new (extra_val_t{q.view.size()}) SNode(q);
+                    b->sn = new (extra_val_t{q.view.size()+1}) SNode(q);
                     b->next = this;
                     gc::shade(b->next);
                     return b;
@@ -462,7 +479,7 @@ namespace gc {
             }
         }
         
-        std::pair<const LNode*, const SNode*> LNode::removed(const SNode* k) const {
+        std::pair<LNode*, SNode*> LNode::removed(SNode* k) {
             if (this->sn == k)
                 return {this->next, this->sn};
             const LNode* a = this->next;
@@ -499,9 +516,9 @@ namespace gc {
         }
         
         
-        std::pair<Result, const SNode*> LNode::_emplace(const INode* i, Query q, int lev, const INode* parent) const {
+        std::pair<Result, SNode*> LNode::_emplace(INode* i, Query q, int lev, INode* parent) {
             // printf("LNode %lx,%p iinsert\n", this->color.load(RELAXED), this);
-            const MNode* expected = this;
+            MNode* expected = this;
             if (i->main.compare_exchange_strong(expected,
                                                 inserted(q),
                                                 RELEASE,
@@ -512,12 +529,12 @@ namespace gc {
             }
         }
         
-        std::pair<Result, const SNode*> LNode::_erase(const INode* i, const SNode* k, int lev, const INode* parent) const {
-            const LNode* ln = this;
+        std::pair<Result, SNode*> LNode::_erase(INode* i, SNode* k, int lev, INode* parent) {
+            LNode* ln = this;
             auto [nln, v] = ln->removed(k);
             assert(nln && nln->sn);
-            const MNode* expected = ln;
-            const MNode* desired = nln->next ? nln : entomb(nln->sn);
+            MNode* expected = ln;
+            MNode* desired = nln->next ? nln : entomb(nln->sn);
             if (i->main.compare_exchange_strong(expected,
                                                 desired,
                                                 RELEASE,
@@ -561,7 +578,7 @@ namespace gc {
             return std::pair(flag, pos);
         }
         
-        const CNode* CNode::inserted(std::uint64_t flag, int pos, const BNode* child) const {
+        CNode* CNode::inserted(std::uint64_t flag, int pos, BNode* child) const {
             //printf("CNode inserted\n");
             auto n = __builtin_popcountll(bmp);
             CNode* b = new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
@@ -577,7 +594,7 @@ namespace gc {
             return b;
         }
         
-        const CNode* CNode::updated(int pos, const BNode* child) const {
+        CNode* CNode::updated(int pos, BNode* child) const {
             //printf("CNode updated\n");
             auto n = __builtin_popcountll(bmp);
             CNode* b = new (extra_val_t{sizeof(BNode*) * n}) CNode;
@@ -591,7 +608,7 @@ namespace gc {
             return b;
         }
         
-        const CNode* CNode::removed(int pos, std::uint64_t flag) const {
+        CNode* CNode::removed(int pos, std::uint64_t flag) const {
             assert(this->bmp & flag);
             assert(__builtin_popcountll((flag - 1) & this->bmp) == pos);
             auto n = __builtin_popcountll(bmp);
@@ -609,7 +626,7 @@ namespace gc {
         
         CNode::CNode() : bmp{0} {}
         
-        const CNode* CNode::make(const SNode* sn1, const SNode* sn2, int lev) {
+        CNode* CNode::make(SNode* sn1, SNode* sn2, int lev) {
             assert(sn1->view() != sn2->view());
             // distinct keys but potentially the same hash
             auto a1 = (sn1->_hash >> lev) & 63;
@@ -651,13 +668,13 @@ namespace gc {
             }
         }
         
-        std::pair<Result, const SNode*> CNode::_emplace(const INode* i, Query q, int lev, const INode* parent) const {
-            const CNode* cn = this;
+        std::pair<Result, SNode*> CNode::_emplace(INode* i, Query q, int lev, INode* parent) {
+            CNode* cn = this;
             auto [flag, pos] = flagpos(q.hash, lev, cn->bmp);
             if (!(flag & cn->bmp)) {
-                const MNode* expected = this;
-                const SNode* sn =  new (extra_val_t{q.view.size()}) SNode(q);
-                const MNode* desired = inserted(flag, pos, sn);
+                MNode* expected = this;
+                SNode* sn = new (extra_val_t{q.view.size()+1}) SNode(q);
+                MNode* desired = inserted(flag, pos, sn);
                 if (i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED)) {
                     return {OK, sn};
                 } else {
@@ -668,12 +685,12 @@ namespace gc {
             }
         }
         
-        std::pair<Result, const SNode*> CNode::_erase(const INode* i, const SNode* k, int lev, const INode* parent) const {
+        std::pair<Result, SNode*> CNode::_erase(INode* i, SNode* k, int lev, INode* parent) {
             auto [flag, pos] = flagpos(k->_hash, lev, bmp);
             if (!(flag & bmp)) {
                 return {OK, nullptr};
             }
-            const BNode* sub = array[pos];
+            BNode* sub = array[pos];
             assert(sub);
             auto [res, value] = sub->_erase(i, k, lev, parent, this, flag, pos);
             if (res == OK) {
@@ -682,20 +699,20 @@ namespace gc {
             return {res, value};
         }
         
-        void CNode::vcleanA(const INode* i, int lev) const {
-            const CNode* m = this;
-            const MNode* expected = m;
-            const MNode* desired = toCompressed(m, lev);
+        void CNode::vcleanA(INode* i, int lev) {
+            CNode* m = this;
+            MNode* expected = m;
+            MNode* desired = toCompressed(m, lev);
             i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED);
         }
         
-        bool CNode::vcleanParentA(const INode* p, const INode* i, std::size_t hc, int lev,
-                                  const MNode* m) const {
-            const CNode* cn = this;
+        bool CNode::vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
+                                  MNode* m) {
+            CNode* cn = this;
             auto [flag, pos] = flagpos(hc, lev, this->bmp);
             if (!(flag & bmp))
                 return true;
-            const BNode* sub = this->array[pos];
+            BNode* sub = this->array[pos];
             if (sub != i)
                 return true;
             return m->vcleanParentB(p, i, hc, lev, m, cn, flag, pos);
@@ -714,7 +731,7 @@ namespace gc {
         
         
         
-        std::pair<Result, const SNode*> iinsert(const INode* i, Query q, int lev, const INode* parent) {
+        std::pair<Result, SNode*> iinsert(INode* i, Query q, int lev, INode* parent) {
             return i->main.load(ACQUIRE)->_emplace(i, q, lev, parent);
         }
         
@@ -722,7 +739,7 @@ namespace gc {
         
         
         
-        std::pair<Result, const SNode*> iremove(const INode* i, const SNode* k, int lev, const INode* parent) {
+        std::pair<Result, SNode*> iremove(INode* i, SNode* k, int lev, INode* parent) {
             return i->main.load(ACQUIRE)->_erase(i, k, lev, parent);
         }
         
@@ -745,7 +762,7 @@ namespace gc {
             context.push(root);
         }
         
-        const SNode* Ctrie::emplace(Query q) {
+        SNode* Ctrie::emplace(Query q) {
             for (;;) {
                 INode* r = root;
                 auto [res, v2] = iinsert(r, q, 0, nullptr);
@@ -756,7 +773,7 @@ namespace gc {
             }
         }
         
-        const SNode* Ctrie::remove(const SNode* k) {
+        SNode* Ctrie::remove(SNode* k) {
             for (;;) {
                 INode* r = root;
                 auto [res, v] = iremove(r, k, 0, nullptr);

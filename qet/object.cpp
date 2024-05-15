@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "object.hpp"
+#include "string.hpp"
 #include "table.hpp"
 #include "value.hpp"
 #include "vm.hpp"
@@ -92,6 +93,7 @@ namespace lox {
     void ObjectRaw::scan(gc::ScanContext&) const {        
     }
         
+    /*
     ObjectString::ObjectString(uint32_t length)
     : length(length) {
     }
@@ -108,6 +110,7 @@ namespace lox {
     
     void ObjectString::scan(gc::ScanContext& context) const {        
     }
+     */
     
     ObjectUpvalue::ObjectUpvalue(AtomicValue* slot)
     : closed(Value())
@@ -133,21 +136,23 @@ namespace lox {
     }
     
     ObjectString* takeString(char* chars, int length) {
-        uint32_t hash = hashString(chars, length);
-        ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
-        if (interned == nullptr) {
-            interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
-        }
+        // uint32_t hash = hashString(chars, length);
+        // ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
+        ObjectString* interned = ObjectString::make(chars, (std::size_t) length);
+        //if (interned == nullptr) {
+        //    interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
+        //}
         operator delete(chars);
         return interned;
     }
     
     ObjectString* copyString(const char* chars, int length) {
-        uint32_t hash = hashString(chars, length);
-        ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
-        if (interned == nullptr) {
-            interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
-        }
+        //uint32_t hash = hashString(chars, length);
+        //ObjectString* interned = tableFindString(&gc.strings, chars, length, hash);
+        ObjectString* interned = ObjectString::make(chars, (std::size_t) length);
+        //if (interned == nullptr) {
+        //    interned = new(gc::extra_val_t{(std::size_t)length + 1}) ObjectString(hash, length, chars);
+        //}
         return interned;
     }
     
@@ -156,7 +161,7 @@ namespace lox {
             printf("<script>");
             return;
         }
-        printf("<fn %s>", function->name->chars);
+        printf("<fn %s>", function->name->_data);
     }
     
     void printObject(Value value) {
@@ -168,7 +173,7 @@ namespace lox {
     }
     
     void ObjectClass::printObject() {
-        printf("%s", name->chars);
+        printf("%s", name->_data);
     }
 
     void ObjectClosure::printObject() {
@@ -180,7 +185,7 @@ namespace lox {
     }
     
     void ObjectInstance::printObject() {
-        printf("%s instance", class_->name->chars);
+        printf("%s instance", class_->name->_data);
     }
 
     void ObjectNative::printObject() {
@@ -191,9 +196,11 @@ namespace lox {
         printf("<raw buffer>");
     }
 
+    /*
     void ObjectString::printObject() {
         printf("%s", chars);
     }
+     */
     
     void ObjectUpvalue::printObject() {
         printf("upvalue");

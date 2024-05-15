@@ -15,6 +15,7 @@
 #include "debug.hpp"
 #include "object.hpp"
 #include "opcodes.hpp"
+#include "string.hpp"
 #include "vm.hpp"
 
 namespace lox {
@@ -49,7 +50,7 @@ namespace lox {
             if (function->name == NULL) {
                 fprintf(stderr, "script\n");
             } else {
-                fprintf(stderr, "%s()\n", function->name->chars);
+                fprintf(stderr, "%s()\n", function->name->_data);
             }
         }
         
@@ -72,7 +73,7 @@ namespace lox {
         //gc.objects = NULL;
         //gc.bytesAllocated = 0;
         //gc.nextGC = 1024 * 1024;
-        initTable(&gc.strings);
+        //initTable(&gc.strings);
         gc.initString = NULL;
         gc.initString = copyString("init", 4);
     }
@@ -83,7 +84,7 @@ namespace lox {
     }
     
     void freeGC() {
-        freeTable(&gc.strings);
+       // freeTable(&gc.strings);
         gc.initString = NULL;
         //freeObjects();
         initGC(); // oddly this makes a new initString
@@ -195,7 +196,7 @@ namespace lox {
     bool VM::bindMethod(ObjectClass* class_, ObjectString* name) {
         Value method;
         if (!tableGet(&class_->methods, name, &method)) {
-            runtimeError("Undefined property '%s'.", name->chars);
+            runtimeError("Undefined property '%s'.", name->_data);
             return false;
         }
         ObjectBoundMethod* bound = new ObjectBoundMethod(peek(0), AS_CLOSURE(method));
@@ -244,13 +245,13 @@ namespace lox {
     }
     
     void VM::concatenate() {
-        const ObjectString* b = AS_STRING(peek(0));
-        const ObjectString* a = AS_STRING(peek(1));
+        ObjectString* b = AS_STRING(peek(0));
+        ObjectString* a = AS_STRING(peek(1));
         
-        int length = a->length + b->length;
+        int length = a->_size + b->_size;
         char* chars = (char*) operator new(length + 1);
-        memcpy(chars, a->chars, a->length);
-        memcpy(chars + a->length, b->chars, b->length);
+        memcpy(chars, a->_data, a->_size);
+        memcpy(chars + a->_size, b->_data, b->_size);
         chars[length] = '\0';
         
         ObjectString* result = takeString(chars, length);
@@ -330,7 +331,7 @@ push(Value(a op b)); \
                     ObjectString* name = READ_STRING();
                     Value value;
                     if (!tableGet(&this->globals, name, &value)) {
-                        runtimeError("Undefined variable '%s'.", name->chars);
+                        runtimeError("Undefined variable '%s'.", name->_data);
                         return INTERPRET_RUNTIME_ERROR;
                     }
                     push(value);
@@ -346,7 +347,7 @@ push(Value(a op b)); \
                     ObjectString* name = READ_STRING();
                     if (tableSet(&this->globals, name, peek(0))) {
                         tableDelete(&this->globals, name);
-                        runtimeError("Undefined variable '%s'.", name->chars);
+                        runtimeError("Undefined variable '%s'.", name->_data);
                         return INTERPRET_RUNTIME_ERROR;
                     }
                     break;

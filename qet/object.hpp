@@ -16,6 +16,12 @@
 #include "table.hpp"
 #include "value.hpp"
 
+namespace gc {
+    namespace _string {
+        struct SNode;
+    }
+}
+
 namespace lox {
     
     // TODO:
@@ -34,7 +40,7 @@ namespace lox {
     struct ObjectFunction;
     struct ObjectInstance;
     struct ObjectNative;
-    struct ObjectString;
+    using ObjectString = ::gc::_string::SNode;
     struct ObjectUpvalue;
     
     struct AtomicValue;
@@ -127,7 +133,7 @@ namespace lox {
         }
         virtual void scan(gc::ScanContext& context) const override;
     };
-    
+    /*
     struct ObjectString final : Object {
         virtual void printObject() override;
         uint32_t hash;
@@ -137,6 +143,7 @@ namespace lox {
         ObjectString(uint32_t hash, uint32_t length, const char* chars);
         virtual void scan(gc::ScanContext& context) const override;
     };
+     */
     
     ObjectString* takeString(char* chars, int length);
     ObjectString* copyString(const char* chars, int length);

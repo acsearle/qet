@@ -15,7 +15,7 @@
 namespace lox {
     
     struct GC {
-        Table strings;
+        //Table strings;
         ObjectString* initString;
     };
     

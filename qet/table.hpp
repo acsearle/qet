@@ -12,9 +12,31 @@
 #include "gc.hpp"
 #include "value.hpp"
 
+namespace gc {
+    namespace _string {
+        struct SNode;
+    }
+}
+
 namespace lox {
     
-    struct ObjectString;
+    // TODO:
+    //
+    // Relative performance of virtual functions vs switch-on-enum
+    //
+    // Using virtual functins for prototyping, contra clox
+    
+    struct VM;
+    
+    struct Object;
+    
+    
+    using ObjectString = ::gc::_string::SNode;
+}
+
+namespace lox {
+    
+    // struct ObjectString;
     
     struct Entry {
         ObjectString* key;

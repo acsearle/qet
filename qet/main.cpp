@@ -7,6 +7,7 @@
 #include "common.hpp"
 #include "debug.hpp"
 #include "vm.hpp"
+#include "string.hpp"
 
 namespace lox {
     
@@ -143,8 +144,9 @@ print clock() - start;
 int main(int argc, const char * argv[]) {
     using namespace lox;
     pthread_setname_np("M0");
-    std::thread collector{gc::collect};
     gc::enter();
+    ObjectString::enter();
+    std::thread collector{gc::collect};
     initGC();
     VM* vm =  new VM;
     vm->initVM();

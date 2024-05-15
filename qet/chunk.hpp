@@ -16,7 +16,24 @@
 
 namespace lox {
     
+    template<typename T>
+    void scan(const std::vector<T>&, gc::ScanContext& context);
+
+    struct Source
+    : gc::Leaf {
+                
+        std::vector<char> text;
+        std::vector<char> name;
+        
+    };
+    
     // Chunks only get stored as members of functions
+    
+    // A chunk stores the bytecode and constants for one function
+    //
+    // For debugging, it contains metadata relating each bytecode to a source
+    // location, and points to a shared source object that holds the program
+    // text and some metadata
     
     struct Chunk {
         
@@ -24,23 +41,27 @@ namespace lox {
         std::vector<Value> constants; // <-- function literals table
 
         
-        // debug cold
+        void    write(uint8_t byte, int line, const char* start);
+        size_t  add_constant(Value value);
+
         
-        // old
-        std::vector<int> lines;       // <-- line number from scanner
+        // cold/debug
         
-        // new
-        // shared source code metadata and text
-        std::vector<const char*> where; // <-- location in text provoking bytecode
+        std::vector<int>            lines           ; // <-- line number from tokenizer
+        std::vector<const char*>    where           ; // <-- location in text provoking bytecode
+        Source*                     source = nullptr; // <-- shared source code
         
-        
-        
-        void write(uint8_t byte, int line, const char* start);
-        size_t add_constant(Value value);
-        
-        void scan(gc::ScanContext&) const;
-        
+                
     }; // struct Chunk
+    
+    void scan(const Chunk&, gc::ScanContext&);
+    
+    template<typename T>
+    void scan(const std::vector<T>& v, gc::ScanContext& context) {
+        for (auto&& x : v)
+            scan(x, context);
+    }
+
         
 } // namespace lox
 

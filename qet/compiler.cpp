@@ -12,7 +12,7 @@
 #include "common.hpp"
 #include "compiler.hpp"
 #include "opcodes.hpp"
-#include "scanner.hpp"
+#include "tokenizer.hpp"
 
 #ifdef LOX_DEBUG_PRINT_CODE
 #include "debug.hpp"
@@ -38,7 +38,7 @@ namespace lox {
         
         struct Parser {
             
-            Scanner* scanner;
+            Tokenizer* tokenizer;
             
             Token current;
             Token previous;
@@ -58,9 +58,7 @@ namespace lox {
         };
         
         struct Compiler;
-        
-        std::vector<Compiler*> compilerRoots;
-        
+                
         using ParseFn = void (Compiler::*)(bool canAssign);
         
         struct ParseRule {
@@ -204,7 +202,7 @@ namespace lox {
         void Parser::advance() {
             previous = current;
             for (;;) {
-                current = scanner->scanToken();
+                current = tokenizer->next();
                 if (current.type != TOKEN_ERROR) break;
                 
                 errorAtCurrent(current.start);
@@ -297,9 +295,7 @@ namespace lox {
         }
         
         Compiler::Compiler(FunctionType type, Compiler* enclosing) {
-            
-            compilerRoots.push_back(this); // dubious to let compiler escape while we are constructing it
-            
+                        
             this->enclosing = enclosing;
             if (this->enclosing) {
                 this->parser = this->enclosing->parser;
@@ -340,9 +336,6 @@ namespace lox {
         }
         
         Compiler::~Compiler() {
-            // distinct from endCompiler
-            std::erase(compilerRoots, this);
-            
         }
         
         void Compiler::beginScope() {
@@ -1004,12 +997,10 @@ namespace lox {
         
     } // namespace
     
-    ObjectFunction* compile(const char* source) {
-        // Compiler compiler;
-        // initCompiler(&compiler, TYPE_SCRIPT);
+    ObjectFunction* compile(const char* first, const char* last) {
         Compiler compiler(TYPE_SCRIPT, nullptr);
         compiler.parser = new Parser;
-        compiler.parser->scanner = Scanner::make(source);
+        compiler.parser->tokenizer = Tokenizer::make(first, last);
 
         compiler.parser->hadError = false;
         compiler.parser->panicMode = false;
@@ -1021,18 +1012,5 @@ namespace lox {
         ObjectFunction* function = endCompiler(&compiler);
         return compiler.parser->hadError ? NULL : function;
     }
-    
-    /*
-    void markCompilerRoots() {
-        //Compiler* compiler = current;
-        //while (compiler != NULL) {
-        //    markObject(compiler->function);
-        //    compiler = compiler->enclosing;
-        //}
-        for (Compiler* compiler : compilerRoots) {
-            markObject(compiler->function);
-        }
-    }
-     */
     
 } // namespace lox

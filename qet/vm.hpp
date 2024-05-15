@@ -69,7 +69,7 @@ namespace lox {
         void defineMethod(ObjectString* name);
         void concatenate();
         InterpretResult run();
-        InterpretResult interpret(const char* source);
+        InterpretResult interpret(const char* first, const char* last);
 
 
         void scan(gc::ScanContext&) const override;

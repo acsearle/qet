@@ -14,9 +14,13 @@
 
 namespace lox {
     
-    void Value::scan(gc::ScanContext& context) const {
-        if (type == VALUE_OBJECT)
-            context.push(as.object);
+    void scan(const Value& self, gc::ScanContext& context) {
+        if (self.type == VALUE_OBJECT)
+            scan(self.as.object, context);
+    }
+    
+    void scan(const AtomicValue& self, gc::ScanContext& context) {
+        scan(self.load(), context);
     }
     
     bool Value::invariant() const {

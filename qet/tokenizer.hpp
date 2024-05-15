@@ -1,12 +1,12 @@
 //
-//  scanner.hpp
+//  tokenizer.hpp
 //  qet
 //
 //  Created by Antony Searle on 20/3/2024.
 //
 
-#ifndef scanner_hpp
-#define scanner_hpp
+#ifndef tokenizer_hpp
+#define tokenizer_hpp
 
 #include "gc.hpp"
 
@@ -69,15 +69,12 @@ namespace lox {
         int line;
     };
     
-    struct Scanner 
-    : gc::Object {
-        static Scanner* make(const char* source);
-        virtual Token scanToken() = 0;
+    struct Tokenizer 
+    : gc::Leaf {
+        static Tokenizer* make(const char* first, const char* last);
+        virtual Token next() = 0;
     };
-    
-    // void initScanner(const char* source);
-    // Token scanToken();
-    
+        
 } // namespace lox
 
-#endif /* scanner_hpp */
+#endif /* tokenizer_hpp */

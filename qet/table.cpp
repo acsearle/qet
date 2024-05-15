@@ -26,7 +26,7 @@ namespace lox {
             Entry* entry = &entries[index];
             if (entry->key) {
                 context.push(entry->key);
-                entry->value.scan(context);
+                lox::scan(entry->value, context);
             }
         }
     }

@@ -521,6 +521,11 @@ namespace gc {
                                                   RELAXED,
                                                   RELAXED);
     }
+    
+    inline void scan(Object* object, ScanContext& context) {
+        if (object)
+            context.push(object);
+    }
 
 } // namespace gc
 

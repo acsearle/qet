@@ -11,19 +11,19 @@
 namespace lox {
     
     static void repl(VM& vm) {
-        char line[1024];
+        char buffer[1024];
         for (;;) {
             {
                 gc::handshake();
                 gc::shade(&vm);
             }
             printf("> ");
-            if (!fgets(line, sizeof(line), stdin)) {
+            if (!fgets(buffer, sizeof(buffer), stdin)) {
                 printf("\n");
                 break;
             }
             // TODO: gracefully handle structures spanning multiple lines
-            vm.interpret(line);
+            vm.interpret(buffer, buffer + strlen(buffer));
         }
     }
     
@@ -63,14 +63,14 @@ namespace lox {
     
     void runFile(VM& vm, const char* path) {
         char* source = readFile(path);
-        InterpretResult result = vm.interpret(source);
+        InterpretResult result = vm.interpret(source, source + strlen(source));
         free(source);
         
         if (result == INTERPRET_COMPILE_ERROR) exit(65);
         if (result == INTERPRET_RUNTIME_ERROR) exit(70);
     }
     
-    const char* preamble =
+    const char preamble[] =
 R"""(
 
 // Exercise all samples at startup
@@ -148,7 +148,7 @@ int main(int argc, const char * argv[]) {
     initGC();
     VM* vm =  new VM;
     vm->initVM();
-    vm->interpret(preamble);
+    vm->interpret(preamble, preamble + sizeof(preamble) - 1);
     {
         gc::handshake();
         gc::shade(vm);

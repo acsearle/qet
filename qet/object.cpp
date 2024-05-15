@@ -32,7 +32,7 @@ namespace lox {
     }
     
     void ObjectBoundMethod::scan(gc::ScanContext &context) const {
-        receiver.scan(context);
+        lox::scan(receiver, context);
         context.push(method);
     }
     
@@ -68,7 +68,7 @@ namespace lox {
     }
     
     void ObjectFunction::scan(gc::ScanContext &context) const {
-        chunk.scan(context);
+        lox::scan(chunk, context);
         context.push(name);
     }
 
@@ -116,9 +116,10 @@ namespace lox {
     }
     
     void ObjectUpvalue::scan(gc::ScanContext& context) const {
-        location->load().scan(context);
-        closed.load().scan(context);
-        context.push(next);
+        using lox::scan;
+        scan(*location, context);
+        scan(closed, context);
+        scan(next, context);
     }
     
     static uint32_t hashString(const char* key, int length) {

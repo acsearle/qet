@@ -151,7 +151,7 @@ namespace lox {
     };
     
     void printObject(Value value);
-        
+    
 } // namespacxe lox
     
 #endif /* object_hpp */

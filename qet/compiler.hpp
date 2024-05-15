@@ -9,12 +9,10 @@
 #define compiler_hpp
 
 #include "object.hpp"
-#include "vm.hpp"
 
 namespace lox {
     
-    ObjectFunction* compile(const char* source);
-    void markCompilerRoots();
+    ObjectFunction* compile(const char* first, const char* last);
     
 }
 

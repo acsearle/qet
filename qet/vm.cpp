@@ -550,8 +550,8 @@ push(Value(a op b)); \
     }
     
     
-    InterpretResult VM::interpret(const char* source) {
-        ObjectFunction* function = compile(source);
+    InterpretResult VM::interpret(const char* first, const char* last) {
+        ObjectFunction* function = compile(first, last);
         if (function == NULL) return INTERPRET_COMPILE_ERROR;
         
         push(Value(function));

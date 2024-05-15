@@ -1,5 +1,5 @@
 //
-//  scanner.cpp
+//  tokenizer.cpp
 //  qet
 //
 //  Created by Antony Searle on 20/3/2024.
@@ -9,16 +9,21 @@
 #include <cstring>
 
 #include "common.hpp"
-#include "scanner.hpp"
+#include "tokenizer.hpp"
 
 namespace lox {
     
-    struct ConcreteScanner : Scanner {
-        const char* start;
-        const char* current;
+    struct ConcreteScanner : Tokenizer {
+        const char* first;   // <-- start of source code
+        const char* last;    // <-- end of source code
+
+        const char* start;   // <-- start of current token
+        const char* current; // <-- position inside current token
+        
+        
         int line;
         
-        explicit ConcreteScanner(const char* source);
+        explicit ConcreteScanner(const char* first, const char* last);
         
         bool isAtEnd() const;
         char advance();
@@ -33,15 +38,17 @@ namespace lox {
         Token identifier();
         Token string();
         Token number();
-        virtual Token scanToken();
+        virtual Token next();
 
     };
     
-    // Scanner scanner;
+    // Tokenizer tokenizer;
     
-    ConcreteScanner::ConcreteScanner(const char* source) {
-        start = source;
-        current = source;
+    ConcreteScanner::ConcreteScanner(const char* first, const char* last) {
+        this->first = first;
+        this->last = last;
+        start = first;
+        current = first;
         line = 1;
     }
     
@@ -194,7 +201,7 @@ namespace lox {
         return makeToken(TOKEN_NUMBER);
     }
     
-    Token ConcreteScanner::scanToken() {
+    Token ConcreteScanner::next() {
         skipWhitespace();
         start = current;
         if (isAtEnd()) return makeToken(TOKEN_EOF);
@@ -227,8 +234,8 @@ namespace lox {
         return errorToken("Unexpected character.");
     }
     
-    Scanner* Scanner::make(const char* source) {
-        return new ConcreteScanner(source);
+    Tokenizer* Tokenizer::make(const char* first, const char* last) {
+        return new ConcreteScanner(first, last);
     }
     
 } // namespace lox

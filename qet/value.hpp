@@ -68,7 +68,6 @@ X(OBJECT)\
         Object* as_object() const { return is_object() ? as.object : nullptr; }
         
         void shade() const;
-        void scan(gc::ScanContext&) const;
         
     };
     
@@ -126,6 +125,10 @@ X(OBJECT)\
         }
         
     };
+    
+    void scan(const Value&, gc::ScanContext&);
+    void scan(const AtomicValue&, gc::ScanContext&);
+
     
 } // namespace lox
 

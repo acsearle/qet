@@ -22,9 +22,9 @@ namespace lox {
         return constants.size() - 1;
     }
     
-    void Chunk::scan(gc::ScanContext& context) const {
-        for (const Value& value : constants)
-            value.scan(context);
+    void scan(const Chunk& self, gc::ScanContext& context) {
+        scan(self.constants, context);
+        scan(self.source, context);
     }
     
 } // namespace lox

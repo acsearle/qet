@@ -198,6 +198,8 @@ namespace gc {
         T& operator*() const;
         bool operator!() const;
         
+        void scan(ScanContext& context) const;
+        
     }; // StrongPtr<T>
 
     
@@ -525,11 +527,15 @@ namespace gc {
 
     inline void ScanContext::push(Leaf const* const& object) {
         Color expected = WHITE;
-        if (object)
+        if (object) {
             object->color.compare_exchange_strong(expected,
                                                   BLACK(),
                                                   RELAXED,
                                                   RELAXED);
+            // Leaf nodes are never pushed as they never produce more work
+            // TODO: this relies on compile-time knowledge, and in turn we
+            // can't rely on actual leaf nodes never being pushed
+        }
     }
     
     inline void scan(Object* object, ScanContext& context) {
@@ -552,17 +558,25 @@ namespace gc {
     
     template<typename T>
     void Array<T>::scan(ScanContext& context) const {
+        LOG("Array scan");
         for (std::size_t i = 0; i != _capacity; ++i)
             _data[i].scan(context);
     }
     
-    
+
+    /*
     template<typename T>
     void scan(const StrongPtr<T>& self, ScanContext& context) {
-        scan(self.ptr.ptr.load(std::memory_order_acquire), context);
+        LOG("StrongPtr scan");
+        context.push(self.ptr.ptr.load(std::memory_order_acquire));
     }
+     */
     
-    
+    template<typename T>
+    void StrongPtr<T>::scan(ScanContext& context) const {
+        context.push(ptr.ptr.load(std::memory_order_acquire));
+    }
+
 
 } // namespace gc
 

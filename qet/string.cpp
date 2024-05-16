@@ -759,6 +759,7 @@ namespace gc {
         }
         
         void Ctrie::scan(ScanContext& context) const {
+            gc::LOG("Ctrie::scan");
             context.push(root);
         }
         
@@ -785,6 +786,10 @@ namespace gc {
         
         void SNode::debug() const {
             printf("%p gc::String{%zx,%zd,\"%.*s\"}\n", this, _hash, _size, (int)_size, _data);
+        }
+        
+        SNode::~SNode() {
+            printf("~\"%.*s\"\n", (int)_size, _data);
         }
 
     } // namespace _string

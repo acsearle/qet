@@ -39,8 +39,8 @@ namespace lox {
     // struct ObjectString;
     
     struct Entry {
-        ObjectString* key;
-        Value value;
+        gc::StrongPtr<ObjectString> key;
+        AtomicValue value;
         
         void scan(gc::ScanContext& context) const;
         
@@ -49,15 +49,11 @@ namespace lox {
     // void scan(const Entry&, gc::ScanContext&);
     
     struct Table {
-        mutable std::mutex _mutex;
         int count;
         // int capacity;
         // Entry* entries;
-        int capacity() const;
         gc::StrongPtr<gc::Array<Entry>> entries;
-        
-        void scan(gc::ScanContext& context) const;
-        
+        void scan(gc::ScanContext& context) const;        
     };
     
     void initTable(Table* table);
@@ -66,12 +62,12 @@ namespace lox {
     bool tableGet(Table* table, ObjectString* key, Value* value);
     bool tableDelete(Table* table, ObjectString* key);
     void tableAddAll(Table* from, Table* to);
-    ObjectString* tableFindString(Table* table, const char* chars, int length, uint32_t hash);
-    void tableRemoveWhite(Table* table);
-    void markTable(const Table* table);
+    // ObjectString* tableFindString(Table* table, const char* chars, int length, uint32_t hash);
+    // void tableRemoveWhite(Table* table);
+    // void markTable(const Table* table);
     void printTable(Table* table);
     
-    void scan(const Table&, gc::ScanContext&);
+    // void scan(const Table&, gc::ScanContext&);
     
 } // namespace lox
 

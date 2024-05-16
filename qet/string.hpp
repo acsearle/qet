@@ -111,7 +111,7 @@ namespace gc {
             }
             
             SNode() = delete;
-            ~SNode() = default;
+            virtual ~SNode() override;
             SNode(SNode&) = delete;
             SNode(SNode&&) = delete;
             SNode& operator=(SNode&) = delete;

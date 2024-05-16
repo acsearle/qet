@@ -571,9 +571,7 @@ push(Value(a op b)); \
             context.push(frames[i].closure);
         for (int i = 0; i != STACK_MAX; ++i)
             context.push(stack[i].load().as_object());
-        // markTable(&globals);
-        using lox::scan;
-        scan(globals, context);
+        this->globals.scan(context);
         context.push(openUpvalues);
     }
     

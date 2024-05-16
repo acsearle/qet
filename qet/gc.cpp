@@ -268,7 +268,7 @@ namespace gc {
                             shade(ref);
                         }
                                                 
-                        LOG("shaded %zd global roots\n");
+                        LOG("shaded %zd global roots\n", count);
                     }
 
                     // handshake ourself!

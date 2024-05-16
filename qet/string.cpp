@@ -51,7 +51,6 @@ namespace gc {
         struct INode : BNode {
             explicit INode(MNode* desired);
             virtual void debug(int lev) const override;
-            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override ;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
@@ -66,7 +65,6 @@ namespace gc {
         
         struct TNode : MNode {
             virtual void debug(int lev) const override;
-            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
@@ -82,7 +80,6 @@ namespace gc {
         
         struct LNode : MNode {
             virtual void debug(int lev) const override;
-            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             std::pair<Result, SNode*> lookup(Query q);
@@ -101,7 +98,6 @@ namespace gc {
             static CNode* make(SNode* sn1, SNode* sn2, int lev);
             CNode();
             virtual void debug(int lev) const override;
-            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
 
@@ -125,7 +121,6 @@ namespace gc {
             
             void debug();
             
-            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
 
@@ -248,30 +243,9 @@ namespace gc {
                    _hash & 63,
                    (_hash >> 6) & 63);
         }
-        
-        void SNode::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_leaf(context);
-        }
-        
+                
         void SNode::_gc_shade_weak(ShadeContext& context) const {
             // no-op; SNode supports weak references
-        }
-        
-        void SNode::_gc_scan(ScanContext& context) const {
-            // no-op; SNode has no members
-            // __builtin_trap();
-            // TODO: SNode is a leaf; it shades black directly and need not
-            // be scanned.  The trap above implies at some point I thought that
-            // it would never get into a ScanContext.
-            //
-            // If an SNode is shaded, it goes black directly and bypasses the
-            // GRAY check
-            //
-            // However, if SNode is reached first by the collector, it is
-            // shaded WHITE -> BLACK and unconditionally added to the list?
-            //
-            // Rethink who gets to decide this, and how it relates to strong
-            // and weak links
         }
         
         void SNode::_gc_scan_weak(ScanContext& context) const {
@@ -828,25 +802,6 @@ namespace gc {
 
         
         
-        void CNode::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_inner(context);
-        }
-
-        void Ctrie::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_inner(context);
-        }
-        
-        void INode::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_inner(context);
-        }
-
-        void LNode::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_inner(context);
-        }
-        
-        void TNode::_gc_shade(ShadeContext& context) const {
-            this->_gc_shade_as_inner(context);
-        }
 
 
 

@@ -115,13 +115,10 @@ namespace gc {
         Object& operator=(Object const&) = delete;
         Object& operator=(Object&&) = delete;
         
-        virtual void _gc_shade(ShadeContext&) const = 0;
+        virtual void _gc_shade(ShadeContext&) const;
         virtual void _gc_scan(ScanContext&) const = 0;
         [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
-        virtual std::size_t _gc_bytes() const = 0;
-        
-        void _gc_shade_as_inner(ShadeContext&) const;
-        void _gc_shade_as_leaf(ShadeContext&) const;
+        virtual std::size_t _gc_bytes() const = 0;        
 
         virtual void _gc_shade_weak(ShadeContext& context) const;
         virtual void _gc_scan_weak(ScanContext& context) const;
@@ -130,26 +127,13 @@ namespace gc {
 
     }; // struct Object
     
-    
-    // TODO: Leaf<Base> : Base ?
-    /*
-    struct Leaf : Object {
-        
-        Leaf();
-        Leaf(Leaf const&) = default;
-        virtual ~Leaf() = default;
-        Leaf& operator=(Leaf const&) = delete;
-        Leaf& operator=(Leaf&&) = delete;
-        
+    template<typename T>
+    struct Leaf : T {
+        virtual ~Leaf() override = default;
         virtual void _gc_shade(ShadeContext&) const override final;
         virtual void _gc_scan(ScanContext&) const override final;
-        
-        virtual void debug() const override;
-        
-    }; // struct Leaf
-     */
-    
-    
+    };
+
     template<typename T>
     struct Atomic<StrongPtr<T>> {
         
@@ -214,7 +198,6 @@ namespace gc {
         T _data[0];
         static Array* make(std::size_t count);
         virtual ~Array() override;
-        virtual void _gc_shade(ShadeContext&) const override;
         virtual void _gc_scan(ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -335,8 +318,8 @@ namespace gc {
         assert(local.depth); // <-- catch allocations that are not inside a mutator state
         local.allocations.push_back(this);
     }
-    
-    inline void Object::_gc_shade_as_inner(ShadeContext& context) const {
+
+    inline void Object::_gc_shade(ShadeContext& context) const {
         Color expected = context.WHITE;
         if (color.compare_exchange_strong(expected,
                                           GRAY,
@@ -344,18 +327,6 @@ namespace gc {
                                           RELAXED)) {
             local.dirty = true;
         }
-    }
-    
-    inline void Object::_gc_shade_as_leaf(ShadeContext& context) const {
-        Color expected = context.WHITE;
-        color.compare_exchange_strong(expected,
-                                      context.BLACK(),
-                                      RELAXED,
-                                      RELAXED);
-    }
-    
-    inline void Object::_gc_scan(ScanContext& context) const {
-        // no-op
     }
 
     inline Color Object::_gc_sweep(SweepContext& context) {
@@ -372,23 +343,21 @@ namespace gc {
     inline void Object::_gc_scan_weak(ScanContext& context) const {
         context.push(this);
     }
-    
-    /*
-    inline Leaf::Leaf() : Object() {
-    }
-    
-    inline void Leaf::_gc_shade(ShadeContext& context) const {
+          
+    template<typename T>
+    void Leaf<T>::_gc_shade(ShadeContext& context) const {
         Color expected = context.WHITE;
-        color.compare_exchange_strong(expected,
-                                      context.BLACK(),
-                                      RELAXED,
-                                      RELAXED);
+        this->color.compare_exchange_strong(expected,
+                                            context.BLACK(),
+                                            RELAXED,
+                                            RELAXED);
     }
-    
-    inline void Leaf::_gc_scan(ScanContext& context) const {
-        // no-op
+
+    template<typename T>
+    void Leaf<T>::_gc_scan(ScanContext& context) const {
+        
     }
-     */
+
         
     template<typename T>
     Atomic<StrongPtr<T>>::Atomic(T* desired)
@@ -572,11 +541,6 @@ namespace gc {
         p->_capacity = n;
         std::uninitialized_value_construct_n(p->_data, p->_capacity);
         return p;
-    }
-
-    template<typename T>
-    void Array<T>::_gc_shade(ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
     }
 
     template<typename T>

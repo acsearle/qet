@@ -549,8 +549,7 @@ push(Value(a op b)); \
 #undef READ_STRING
         
     }
-    
-    
+        
     InterpretResult VM::interpret(const char* first, const char* last) {
         ObjectFunction* function = compile(first, last);
         if (function == NULL) return INTERPRET_COMPILE_ERROR;
@@ -563,11 +562,7 @@ push(Value(a op b)); \
         
         return run();
     }
-        
-    void VM::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-    
+            
     void VM::_gc_scan(gc::ScanContext& context) const {
         // We have to scan the whole fixed size arrays else we race with
         // frameCount and stackTop

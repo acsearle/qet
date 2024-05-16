@@ -13,7 +13,7 @@
 
 namespace lox {
     
-    struct ConcreteTokenizer : Tokenizer {
+    struct ConcreteTokenizer : gc::Leaf<Tokenizer> {
         const char* first;   // <-- start of source code
         const char* last;    // <-- end of source code
 
@@ -40,8 +40,6 @@ namespace lox {
         Token number();
         virtual Token next() override;
         
-        virtual void _gc_shade(gc::ShadeContext&) const override;
-        virtual void _gc_scan(gc::ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
 
     };
@@ -244,13 +242,6 @@ namespace lox {
     
     std::size_t ConcreteTokenizer::_gc_bytes() const {
         return sizeof(ConcreteTokenizer);
-    }
-
-    void ConcreteTokenizer::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_leaf(context);
-    }
-
-    void ConcreteTokenizer::_gc_scan(gc::ScanContext& context) const {
     }
     
 } // namespace lox

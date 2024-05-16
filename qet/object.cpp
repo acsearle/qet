@@ -86,10 +86,7 @@ namespace lox {
     ObjectNative::ObjectNative(NativeFn function)
     : function(function) {
     }
-    
-    void ObjectNative::_gc_scan(gc::ScanContext&) const {
-    }
-        
+            
     ObjectUpvalue::ObjectUpvalue(AtomicValue* slot)
     : closed(Value())
     , location(slot)
@@ -200,34 +197,6 @@ namespace lox {
 
     std::size_t ObjectUpvalue::_gc_bytes() const {
         return sizeof(ObjectUpvalue);
-    }
-    
-    void ObjectBoundMethod::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-
-    void ObjectClass::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-    
-    void ObjectClosure::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-
-    void ObjectFunction::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-
-    void ObjectInstance::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
-    }
-
-    void ObjectNative::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_leaf(context);
-    }
-
-    void ObjectUpvalue::_gc_shade(gc::ShadeContext& context) const {
-        this->_gc_shade_as_inner(context);
     }
 
 } // namespace lox

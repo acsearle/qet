@@ -87,7 +87,7 @@ namespace gc {
 
         }; // struct BNode
         
-        struct SNode : BNode {
+        struct SNode : gc::Leaf<BNode> {
             
             using Query = Query;
             
@@ -121,8 +121,6 @@ namespace gc {
             
             // GC methods
             
-            virtual void _gc_shade(ShadeContext&) const override;
-            virtual void _gc_scan(ScanContext& context) const override;
             virtual Color _gc_sweep(SweepContext&) override;
             virtual std::size_t _gc_bytes() const override;
             virtual void _gc_shade_weak(ShadeContext&) const override;

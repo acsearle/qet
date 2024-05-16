@@ -118,7 +118,7 @@ namespace gc {
         virtual void _gc_shade(ShadeContext&) const;
         virtual void _gc_scan(ScanContext&) const = 0;
         [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
-        virtual std::size_t _gc_bytes() const = 0;        
+        virtual std::size_t _gc_bytes() const = 0;
 
         virtual void _gc_shade_weak(ShadeContext& context) const;
         virtual void _gc_scan_weak(ScanContext& context) const;
@@ -127,12 +127,46 @@ namespace gc {
 
     }; // struct Object
     
+
+    // Provide implementations for leaf objects (which have no GC fields)
+    
     template<typename T>
     struct Leaf : T {
+        static_assert(std::is_convertible_v<T*, Object*>);
         virtual ~Leaf() override = default;
         virtual void _gc_shade(ShadeContext&) const override final;
         virtual void _gc_scan(ScanContext&) const override final;
     };
+
+        
+    // Array provides a dynamic but non-resizable array of T, the GC equivalent
+    // of "new T[count]"
+    //
+    // This is slightly clumsy in several respects and more for internal use;
+    // compare ObjectTable and ObjectArray?
+    //
+    // TODO: should this be an adapter like Leaf<T> ?
+    //
+    // TODO: generic implementation of _gc_scan means we need some kind of
+    // free function ADL scan of each element, with no-op default?
+    
+    template<typename T>
+    struct Array final : Object {
+        std::size_t _capacity;
+        T _data[0];
+        static Array* make(std::size_t count);
+        virtual ~Array() override;
+        virtual void _gc_scan(ScanContext&) const override;
+        virtual std::size_t _gc_bytes() const override;
+        
+        // static Array* make(T* first, T* last);
+        // T* begin();
+        // T* end();
+        // T& operator[](std::size_t i);
+        
+    };
+        
+    
 
     template<typename T>
     struct Atomic<StrongPtr<T>> {
@@ -186,21 +220,10 @@ namespace gc {
         T* operator->() const;
         T& operator*() const;
         bool operator!() const;
-        
-        void scan(ScanContext& context) const;
-        
+                
     }; // StrongPtr<T>
 
-    
-    template<typename T>
-    struct Array final : Object {
-        std::size_t _capacity;
-        T _data[0];
-        static Array* make(std::size_t count);
-        virtual ~Array() override;
-        virtual void _gc_scan(ScanContext&) const override;
-        virtual std::size_t _gc_bytes() const override;
-    };
+
 
     struct Global {
         
@@ -343,6 +366,8 @@ namespace gc {
     inline void Object::_gc_scan_weak(ScanContext& context) const {
         context.push(this);
     }
+    
+    // Leaf<T> provides efficient implementation for no GC fields case
           
     template<typename T>
     void Leaf<T>::_gc_shade(ShadeContext& context) const {
@@ -355,7 +380,6 @@ namespace gc {
 
     template<typename T>
     void Leaf<T>::_gc_scan(ScanContext& context) const {
-        
     }
 
         
@@ -564,10 +588,12 @@ namespace gc {
     }
      */
     
+    /*
     template<typename T>
     void StrongPtr<T>::scan(ScanContext& context) const {
         context.push(ptr.ptr.load(std::memory_order_acquire));
     }
+     */
 
 
 } // namespace gc

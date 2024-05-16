@@ -253,9 +253,9 @@ namespace gc {
         }
         
         Color SNode::_gc_sweep(SweepContext& context) {
-            Color expected = context.WHITE;
             
-            // Race to color the object RED before a mutator colors it BLACK
+            // Race to transition WHITE -> RED before a mutator transitions WHITE -> BLACK
+            Color expected = context.WHITE;
             this->color.compare_exchange_strong(expected, RED, RELAXED, RELAXED);
             
             if (expected == context.WHITE) {
@@ -267,6 +267,7 @@ namespace gc {
                 global_string_ctrie->remove(this);
                 return RED;
             } else if (expected == (context.BLACK())) {
+                // We lost the race, the string survives
                 printf("Preserved a BLACK string\n");
                 return expected;
             } else if (expected == RED) {

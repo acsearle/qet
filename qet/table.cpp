@@ -210,8 +210,7 @@ namespace lox {
         using lox::scan;
         using gc::scan;
         gc::LOG("Table scan");
-        // scan(self.entries, context);
-        self.entries.scan(context);
+        context.push(self.entries);
     }
     
     void debugTable(Table* table) {
@@ -254,7 +253,7 @@ namespace lox {
     
     void Entry::scan(gc::ScanContext& context) const {
         gc::LOG("Entry scan");
-        key.scan(context);
+        context.push(key);
         using lox::scan;
         scan(value, context);
     }

@@ -563,6 +563,10 @@ push(Value(a op b)); \
         
         return run();
     }
+        
+    void VM::_gc_shade(gc::ShadeContext& context) const {
+        this->_gc_shade_as_inner(context);
+    }
     
     void VM::_gc_scan(gc::ScanContext& context) const {
         // We have to scan the whole fixed size arrays else we race with

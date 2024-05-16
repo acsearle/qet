@@ -51,6 +51,7 @@ namespace gc {
         struct INode : BNode {
             explicit INode(MNode* desired);
             virtual void debug(int lev) const override;
+            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override ;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
@@ -65,6 +66,7 @@ namespace gc {
         
         struct TNode : MNode {
             virtual void debug(int lev) const override;
+            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
@@ -80,6 +82,7 @@ namespace gc {
         
         struct LNode : MNode {
             virtual void debug(int lev) const override;
+            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             std::pair<Result, SNode*> lookup(Query q);
@@ -98,6 +101,7 @@ namespace gc {
             static CNode* make(SNode* sn1, SNode* sn2, int lev);
             CNode();
             virtual void debug(int lev) const override;
+            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
 
@@ -121,6 +125,7 @@ namespace gc {
             
             void debug();
             
+            virtual void _gc_shade(ShadeContext&) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
 
@@ -147,7 +152,7 @@ namespace gc {
             context.WHITE = local.WHITE;
             for (int i = 0; i != num; ++i) {
                 ncn->array[i] = resurrect(cn->array[i]);
-                ncn->array[i]->shade_weak(context);
+                ncn->array[i]->_gc_shade_weak(context);
             }
             return toContracted(ncn, lev);
         }
@@ -245,14 +250,10 @@ namespace gc {
         }
         
         void SNode::_gc_shade(ShadeContext& context) const {
-            Color expected = context.WHITE;
-            color.compare_exchange_strong(expected,
-                                          context.BLACK(),
-                                          RELAXED,
-                                          RELAXED);
+            this->_gc_shade_as_leaf(context);
         }
         
-        void SNode::shade_weak(ShadeContext& context) const {
+        void SNode::_gc_shade_weak(ShadeContext& context) const {
             // no-op; SNode supports weak references
         }
         
@@ -273,7 +274,7 @@ namespace gc {
             // and weak links
         }
         
-        void SNode::scan_weak(ScanContext& context) const {
+        void SNode::_gc_scan_weak(ScanContext& context) const {
             // no-op; SNode supports weak references
         }
         
@@ -574,7 +575,7 @@ namespace gc {
         void CNode::_gc_scan(ScanContext& context) const {
             int num = __builtin_popcountll(this->bmp);
             for (int i = 0; i != num; ++i) {
-                this->array[i]->scan_weak(context);
+                this->array[i]->_gc_scan_weak(context);
             }
         }
         
@@ -597,7 +598,7 @@ namespace gc {
             ShadeContext context;
             context.WHITE = local.WHITE;
             for (int i = 0; i != n + 1; ++i)
-                b->array[i]->shade_weak(context);
+                b->array[i]->_gc_shade_weak(context);
             return b;
         }
         
@@ -611,7 +612,7 @@ namespace gc {
             ShadeContext context;
             context.WHITE = local.WHITE;
             for (int i = 0; i != n; ++i)
-                b->array[i]->shade_weak(context);
+                b->array[i]->_gc_shade_weak(context);
             return b;
         }
         
@@ -627,7 +628,7 @@ namespace gc {
             ShadeContext context;
             context.WHITE = local.WHITE;
             for (int i = 0; i != n - 1; ++i)
-                b->array[i]->shade_weak(context);
+                b->array[i]->_gc_shade_weak(context);
             return b;
         }
         
@@ -826,6 +827,28 @@ namespace gc {
         }
 
         
+        
+        void CNode::_gc_shade(ShadeContext& context) const {
+            this->_gc_shade_as_inner(context);
+        }
+
+        void Ctrie::_gc_shade(ShadeContext& context) const {
+            this->_gc_shade_as_inner(context);
+        }
+        
+        void INode::_gc_shade(ShadeContext& context) const {
+            this->_gc_shade_as_inner(context);
+        }
+
+        void LNode::_gc_shade(ShadeContext& context) const {
+            this->_gc_shade_as_inner(context);
+        }
+        
+        void TNode::_gc_shade(ShadeContext& context) const {
+            this->_gc_shade_as_inner(context);
+        }
+
+
 
         
 

@@ -72,6 +72,8 @@ namespace lox {
         InterpretResult interpret(const char* first, const char* last);
 
 
+
+        void _gc_shade(gc::ShadeContext&) const override;
         void _gc_scan(gc::ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
 

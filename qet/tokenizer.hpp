@@ -70,7 +70,7 @@ namespace lox {
     };
     
     struct Tokenizer 
-    : gc::Leaf {
+    : gc::Object {
         static Tokenizer* make(const char* first, const char* last);
         virtual Token next() = 0;
     };

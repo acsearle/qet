@@ -20,7 +20,7 @@ namespace lox {
     void scan(const std::vector<T>&, gc::ScanContext& context);
 
     struct Source
-    : gc::Leaf {
+    : gc::Object {
                 
         std::vector<char> text;
         std::vector<char> name;

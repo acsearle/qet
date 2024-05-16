@@ -75,6 +75,7 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         Value receiver;
         ObjectClosure* method;
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -85,6 +86,7 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         ObjectString* name;
         Table methods;
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -96,6 +98,7 @@ namespace lox {
         int upvalueCount;
         ObjectUpvalue* upvalues[0];  // flexible array member
         explicit ObjectClosure(ObjectFunction* function);
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -108,6 +111,7 @@ namespace lox {
         Chunk chunk;
         ObjectString* name;
         ObjectFunction();
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -117,6 +121,7 @@ namespace lox {
         ObjectClass* class_;
         Table fields;
         explicit ObjectInstance(ObjectClass* class_);
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
 };
@@ -126,6 +131,7 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         NativeFn function;
         explicit ObjectNative(NativeFn function);
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -139,6 +145,7 @@ namespace lox {
         AtomicValue closed;
         ObjectUpvalue* next;
         explicit ObjectUpvalue(AtomicValue* slot);
+        virtual void _gc_shade(gc::ShadeContext& context) const override;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
     };

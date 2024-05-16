@@ -15,9 +15,11 @@ namespace gc {
         printf("%p gc::Object\n", this);
     }
 
+    /*
     void Leaf::debug() const {
         printf("%p gc::Leaf\n", this);
     }
+     */
 
     
     void LOG(const char* format, ...) {

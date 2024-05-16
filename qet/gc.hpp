@@ -115,13 +115,16 @@ namespace gc {
         Object& operator=(Object const&) = delete;
         Object& operator=(Object&&) = delete;
         
-        virtual void _gc_shade(ShadeContext&) const;
-        virtual void _gc_scan(ScanContext&) const;
+        virtual void _gc_shade(ShadeContext&) const = 0;
+        virtual void _gc_scan(ScanContext&) const = 0;
         [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
         virtual std::size_t _gc_bytes() const = 0;
+        
+        void _gc_shade_as_inner(ShadeContext&) const;
+        void _gc_shade_as_leaf(ShadeContext&) const;
 
-        virtual void shade_weak(ShadeContext& context) const;
-        virtual void scan_weak(ScanContext& context) const;
+        virtual void _gc_shade_weak(ShadeContext& context) const;
+        virtual void _gc_scan_weak(ScanContext& context) const;
         
         virtual void debug() const;
 
@@ -129,7 +132,7 @@ namespace gc {
     
     
     // TODO: Leaf<Base> : Base ?
-    
+    /*
     struct Leaf : Object {
         
         Leaf();
@@ -144,6 +147,7 @@ namespace gc {
         virtual void debug() const override;
         
     }; // struct Leaf
+     */
     
     
     template<typename T>
@@ -210,6 +214,7 @@ namespace gc {
         T _data[0];
         static Array* make(std::size_t count);
         virtual ~Array() override;
+        virtual void _gc_shade(ShadeContext&) const override;
         virtual void _gc_scan(ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
     };
@@ -270,7 +275,7 @@ namespace gc {
     struct ScanContext : CollectionContext {
         
         void push(Object const*const& field);
-        void push(Leaf const*const& field);
+        // void push(Leaf const*const& field);
 
         template<typename T> 
         void push(StrongPtr<T> const& field) {
@@ -331,7 +336,7 @@ namespace gc {
         local.allocations.push_back(this);
     }
     
-    inline void Object::_gc_shade(ShadeContext& context) const {
+    inline void Object::_gc_shade_as_inner(ShadeContext& context) const {
         Color expected = context.WHITE;
         if (color.compare_exchange_strong(expected,
                                           GRAY,
@@ -339,6 +344,14 @@ namespace gc {
                                           RELAXED)) {
             local.dirty = true;
         }
+    }
+    
+    inline void Object::_gc_shade_as_leaf(ShadeContext& context) const {
+        Color expected = context.WHITE;
+        color.compare_exchange_strong(expected,
+                                      context.BLACK(),
+                                      RELAXED,
+                                      RELAXED);
     }
     
     inline void Object::_gc_scan(ScanContext& context) const {
@@ -353,14 +366,14 @@ namespace gc {
         return color;
     }
     
-    inline void Object::shade_weak(ShadeContext& context) const {
+    inline void Object::_gc_shade_weak(ShadeContext& context) const {
         this->_gc_shade(context);
     }
-    inline void Object::scan_weak(ScanContext& context) const {
+    inline void Object::_gc_scan_weak(ScanContext& context) const {
         context.push(this);
     }
     
-    
+    /*
     inline Leaf::Leaf() : Object() {
     }
     
@@ -375,6 +388,7 @@ namespace gc {
     inline void Leaf::_gc_scan(ScanContext& context) const {
         // no-op
     }
+     */
         
     template<typename T>
     Atomic<StrongPtr<T>>::Atomic(T* desired)
@@ -527,6 +541,7 @@ namespace gc {
         }
     }
 
+    /*
     inline void ScanContext::push(Leaf const* const& object) {
         Color expected = WHITE;
         if (object) {
@@ -539,6 +554,7 @@ namespace gc {
             // can't rely on actual leaf nodes never being pushed
         }
     }
+     */
     
     inline void scan(Object* object, ScanContext& context) {
         if (object)
@@ -557,7 +573,12 @@ namespace gc {
         std::uninitialized_value_construct_n(p->_data, p->_capacity);
         return p;
     }
-    
+
+    template<typename T>
+    void Array<T>::_gc_shade(ShadeContext& context) const {
+        this->_gc_shade_as_inner(context);
+    }
+
     template<typename T>
     void Array<T>::_gc_scan(ScanContext& context) const {
         LOG("Array scan");

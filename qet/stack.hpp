@@ -18,7 +18,7 @@ namespace gc {
             Atomic<StrongPtr<Node>> next;
             T value;
             virtual ~Node() override = default;
-            virtual void scan(ScanContext& context) const override {
+            virtual void _gc_scan(ScanContext& context) const override {
                 context.push(this->next);
                 context.push(this->value);
             }
@@ -26,7 +26,7 @@ namespace gc {
         
         Atomic<StrongPtr<Node>> head;
         
-        virtual void scan(ScanContext& context) const override {
+        virtual void _gc_scan(ScanContext& context) const override {
             context.push(this->head);
         }
         

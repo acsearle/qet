@@ -564,7 +564,7 @@ push(Value(a op b)); \
         return run();
     }
     
-    void VM::scan(gc::ScanContext& context) const {
+    void VM::_gc_scan(gc::ScanContext& context) const {
         // We have to scan the whole fixed size arrays else we race with
         // frameCount and stackTop
         for (int i = 0; i != FRAMES_MAX; ++i)
@@ -573,6 +573,11 @@ push(Value(a op b)); \
             context.push(stack[i].load().as_object());
         this->globals.scan(context);
         context.push(openUpvalues);
+    }
+    
+    
+    std::size_t VM::_gc_bytes() const {
+        return sizeof(VM);
     }
     
 }

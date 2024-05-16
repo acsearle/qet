@@ -29,7 +29,7 @@ namespace gc {
             
             virtual ~Node() override = default;
             
-            virtual void scan(ScanContext& context) const override {
+            virtual void _gc_scan(ScanContext& context) const override {
                 context.push(this->next);
                 // context.push(this->value);
             }
@@ -51,7 +51,7 @@ namespace gc {
         , tail(sentinel) {
         }
         
-        virtual void scan(ScanContext& context) const override {
+        virtual void _gc_scan(ScanContext& context) const override {
             context.push(this->head);
         }
         

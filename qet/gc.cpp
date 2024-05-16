@@ -41,7 +41,7 @@ namespace gc {
                 Object const* object = _stack.top();
                 _stack.pop();
                 assert(object && object->color.load(RELAXED) == (BLACK()));
-                object->scan(*this);
+                object->_gc_scan(*this);
             }
         }
         
@@ -371,7 +371,7 @@ namespace gc {
                             blacklist.push_back(object);
                         } else if (expected == GRAY) { // GRAY -> BLACK
                             ++grays;
-                            object->scan(working);
+                            object->_gc_scan(working);
                             blacklist.push_back(object);
                             working.process();
                         } else if (expected == local.WHITE) {
@@ -492,7 +492,7 @@ namespace gc {
                     Object* object = objects.front();
                     objects.pop_front();
                     assert(object);
-                    Color after = object->sweep(context);
+                    Color after = object->_gc_sweep(context);
                     if (after == local.WHITE) {
                         // delete object;
                         ++whites;

@@ -115,9 +115,10 @@ namespace gc {
         Object& operator=(Object const&) = delete;
         Object& operator=(Object&&) = delete;
         
-        virtual void shade(ShadeContext&) const;
-        virtual void scan(ScanContext&) const;
-        [[nodiscard]] virtual Color sweep(SweepContext&);
+        virtual void _gc_shade(ShadeContext&) const;
+        virtual void _gc_scan(ScanContext&) const;
+        [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
+        virtual std::size_t _gc_bytes() const = 0;
 
         virtual void shade_weak(ShadeContext& context) const;
         virtual void scan_weak(ScanContext& context) const;
@@ -137,8 +138,8 @@ namespace gc {
         Leaf& operator=(Leaf const&) = delete;
         Leaf& operator=(Leaf&&) = delete;
         
-        virtual void shade(ShadeContext&) const override final;
-        virtual void scan(ScanContext&) const override final;
+        virtual void _gc_shade(ShadeContext&) const override final;
+        virtual void _gc_scan(ScanContext&) const override final;
         
         virtual void debug() const override;
         
@@ -209,7 +210,8 @@ namespace gc {
         T _data[0];
         static Array* make(std::size_t count);
         virtual ~Array() override;
-        virtual void scan(ScanContext&) const override;
+        virtual void _gc_scan(ScanContext&) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
 
     struct Global {
@@ -296,7 +298,7 @@ namespace gc {
 
     inline void shade(const Object* object, ShadeContext& context) {
         if (object) {
-            object->shade(context);
+            object->_gc_shade(context);
         }
     }
 
@@ -304,7 +306,7 @@ namespace gc {
         if (object) {
             ShadeContext context;
             context.WHITE = local.WHITE;
-            object->shade(context);
+            object->_gc_shade(context);
         }
     }
     
@@ -329,7 +331,7 @@ namespace gc {
         local.allocations.push_back(this);
     }
     
-    inline void Object::shade(ShadeContext& context) const {
+    inline void Object::_gc_shade(ShadeContext& context) const {
         Color expected = context.WHITE;
         if (color.compare_exchange_strong(expected,
                                           GRAY,
@@ -339,11 +341,11 @@ namespace gc {
         }
     }
     
-    inline void Object::scan(ScanContext& context) const {
+    inline void Object::_gc_scan(ScanContext& context) const {
         // no-op
     }
 
-    inline Color Object::sweep(SweepContext& context) {
+    inline Color Object::_gc_sweep(SweepContext& context) {
         Color color = this->color.load(RELAXED);
         if (color == context.WHITE) {
             delete this;
@@ -352,7 +354,7 @@ namespace gc {
     }
     
     inline void Object::shade_weak(ShadeContext& context) const {
-        this->shade(context);
+        this->_gc_shade(context);
     }
     inline void Object::scan_weak(ScanContext& context) const {
         context.push(this);
@@ -362,7 +364,7 @@ namespace gc {
     inline Leaf::Leaf() : Object() {
     }
     
-    inline void Leaf::shade(ShadeContext& context) const {
+    inline void Leaf::_gc_shade(ShadeContext& context) const {
         Color expected = context.WHITE;
         color.compare_exchange_strong(expected,
                                       context.BLACK(),
@@ -370,7 +372,7 @@ namespace gc {
                                       RELAXED);
     }
     
-    inline void Leaf::scan(ScanContext& context) const {
+    inline void Leaf::_gc_scan(ScanContext& context) const {
         // no-op
     }
         
@@ -557,12 +559,17 @@ namespace gc {
     }
     
     template<typename T>
-    void Array<T>::scan(ScanContext& context) const {
+    void Array<T>::_gc_scan(ScanContext& context) const {
         LOG("Array scan");
         for (std::size_t i = 0; i != _capacity; ++i)
             _data[i].scan(context);
     }
     
+    template<typename T>
+    std::size_t Array<T>::_gc_bytes() const {
+        return sizeof(Array<T>) + sizeof(T) * _capacity;
+    }
+
 
     /*
     template<typename T>

@@ -13,7 +13,7 @@
 
 namespace lox {
     
-    struct ConcreteScanner : Tokenizer {
+    struct ConcreteTokenizer : Tokenizer {
         const char* first;   // <-- start of source code
         const char* last;    // <-- end of source code
 
@@ -23,7 +23,7 @@ namespace lox {
         
         int line;
         
-        explicit ConcreteScanner(const char* first, const char* last);
+        explicit ConcreteTokenizer(const char* first, const char* last);
         
         bool isAtEnd() const;
         char advance();
@@ -38,13 +38,15 @@ namespace lox {
         Token identifier();
         Token string();
         Token number();
-        virtual Token next();
+        virtual Token next() override;
+        
+        virtual std::size_t _gc_bytes() const override;
 
     };
     
     // Tokenizer tokenizer;
     
-    ConcreteScanner::ConcreteScanner(const char* first, const char* last) {
+    ConcreteTokenizer::ConcreteTokenizer(const char* first, const char* last) {
         this->first = first;
         this->last = last;
         start = first;
@@ -62,32 +64,32 @@ namespace lox {
         return c >= '0' && c <= '9';
     }
     
-    bool ConcreteScanner::isAtEnd() const {
+    bool ConcreteTokenizer::isAtEnd() const {
         return *current == '\0';
     }
     
-    char ConcreteScanner::advance() {
+    char ConcreteTokenizer::advance() {
         return *current++;
     }
     
-    char ConcreteScanner::peek() const {
+    char ConcreteTokenizer::peek() const {
         return *current;
     }
     
-    char ConcreteScanner::peekNext() const {
+    char ConcreteTokenizer::peekNext() const {
         if (isAtEnd())
             return '\0';
         return *(current + 1);
     }
     
-    bool ConcreteScanner::match(char expected) {
+    bool ConcreteTokenizer::match(char expected) {
         if (isAtEnd()) return false;
         if (*current != expected) return false;
         current++;
         return true;
     }
     
-    Token ConcreteScanner::makeToken(TokenType type) const {
+    Token ConcreteTokenizer::makeToken(TokenType type) const {
         Token token;
         token.type = type;
         token.start = start;
@@ -96,7 +98,7 @@ namespace lox {
         return token;
     }
     
-    Token ConcreteScanner::errorToken(const char* message) const {
+    Token ConcreteTokenizer::errorToken(const char* message) const {
         Token token;
         token.type = TOKEN_ERROR;
         token.start = message;
@@ -105,7 +107,7 @@ namespace lox {
         return token;
     }
     
-    void ConcreteScanner::skipWhitespace() {
+    void ConcreteTokenizer::skipWhitespace() {
         for (;;) {
             char c = peek();
             switch (c) {
@@ -131,7 +133,7 @@ namespace lox {
     }
     
     
-    TokenType ConcreteScanner::checkKeyword(int start, int length, const char* rest, TokenType type) const {
+    TokenType ConcreteTokenizer::checkKeyword(int start, int length, const char* rest, TokenType type) const {
         if (current - this->start == start + length &&
             memcmp(this->start + start, rest, length) == 0) {
             return type;
@@ -139,7 +141,7 @@ namespace lox {
         return TOKEN_IDENTIFIER;
     }
     
-    TokenType ConcreteScanner::identifierType() const {
+    TokenType ConcreteTokenizer::identifierType() const {
         switch (start[0]) {
             case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
             case 'c': return checkKeyword(1, 4, "lass", TOKEN_CLASS);
@@ -173,12 +175,12 @@ namespace lox {
         return TOKEN_IDENTIFIER;
     }
     
-    Token ConcreteScanner::identifier() {
+    Token ConcreteTokenizer::identifier() {
         while (isAlpha(peek()) || isDigit(peek())) advance();
         return makeToken(identifierType());
     }
     
-    Token ConcreteScanner::string() {
+    Token ConcreteTokenizer::string() {
         while (peek() != '"' && !isAtEnd()) {
             if (peek() == '\n') line++;
             advance();
@@ -191,7 +193,7 @@ namespace lox {
         return makeToken(TOKEN_STRING);
     }
     
-    Token ConcreteScanner::number() {
+    Token ConcreteTokenizer::number() {
         while (isDigit(peek())) advance();
         if (peek() == '.' && isDigit(peekNext())) {
             // Consume the '.'.
@@ -201,7 +203,7 @@ namespace lox {
         return makeToken(TOKEN_NUMBER);
     }
     
-    Token ConcreteScanner::next() {
+    Token ConcreteTokenizer::next() {
         skipWhitespace();
         start = current;
         if (isAtEnd()) return makeToken(TOKEN_EOF);
@@ -235,7 +237,11 @@ namespace lox {
     }
     
     Tokenizer* Tokenizer::make(const char* first, const char* last) {
-        return new ConcreteScanner(first, last);
+        return new ConcreteTokenizer(first, last);
+    }
+    
+    std::size_t ConcreteTokenizer::_gc_bytes() const {
+        return sizeof(ConcreteTokenizer);
     }
     
 } // namespace lox

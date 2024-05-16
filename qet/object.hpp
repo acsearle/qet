@@ -75,8 +75,8 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         Value receiver;
         ObjectClosure* method;
-        virtual void scan(gc::ScanContext& context) const override;
-        
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
     
     struct ObjectClass : Object {
@@ -85,7 +85,8 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         ObjectString* name;
         Table methods;
-        virtual void scan(gc::ScanContext& context) const override;
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
     
     struct ObjectClosure : Object {
@@ -93,9 +94,10 @@ namespace lox {
         virtual bool callObject(VM& vm, int argCount) override;
         ObjectFunction* function;
         int upvalueCount;
-        ObjectUpvalue* upvalues[];  // flexible array member
+        ObjectUpvalue* upvalues[0];  // flexible array member
         explicit ObjectClosure(ObjectFunction* function);
-        virtual void scan(gc::ScanContext& context) const override;
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
     
     
@@ -106,7 +108,8 @@ namespace lox {
         Chunk chunk;
         ObjectString* name;
         ObjectFunction();
-        virtual void scan(gc::ScanContext& context) const override;
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
     
     struct ObjectInstance : Object {
@@ -114,37 +117,19 @@ namespace lox {
         ObjectClass* class_;
         Table fields;
         explicit ObjectInstance(ObjectClass* class_);
-        virtual void scan(gc::ScanContext& context) const override;
-    };
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
+};
     
     struct ObjectNative : Object {
         virtual void printObject() override;
         virtual bool callObject(VM& vm, int argCount) override;
         NativeFn function;
         explicit ObjectNative(NativeFn function);
-        virtual void scan(gc::ScanContext& context) const override;
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
-    
-    struct ObjectRaw : Object {
-        virtual void printObject() override;
-        unsigned char bytes[];
-        static void* operator new(size_t count, size_t extra) {
-            return :: operator new(count + extra);
-        }
-        virtual void scan(gc::ScanContext& context) const override;
-    };
-    /*
-    struct ObjectString final : Object {
-        virtual void printObject() override;
-        uint32_t hash;
-        uint32_t length;
-        char chars[0]; // flexible array member
-        explicit ObjectString(uint32_t length);
-        ObjectString(uint32_t hash, uint32_t length, const char* chars);
-        virtual void scan(gc::ScanContext& context) const override;
-    };
-     */
-    
+        
     ObjectString* takeString(char* chars, int length);
     ObjectString* copyString(const char* chars, int length);
     
@@ -154,7 +139,8 @@ namespace lox {
         AtomicValue closed;
         ObjectUpvalue* next;
         explicit ObjectUpvalue(AtomicValue* slot);
-        virtual void scan(gc::ScanContext& context) const override;
+        virtual void _gc_scan(gc::ScanContext& context) const override;
+        virtual std::size_t _gc_bytes() const override;
     };
     
     void printObject(Value value);

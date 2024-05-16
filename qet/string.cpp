@@ -51,7 +51,8 @@ namespace gc {
         struct INode : BNode {
             explicit INode(MNode* desired);
             virtual void debug(int lev) const override;
-            virtual void scan(ScanContext& context) const override ;
+            virtual void _gc_scan(ScanContext& context) const override ;
+            virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
                                                              CNode* cn, std::uint64_t flag, int pos) override;
             virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent,
@@ -64,7 +65,8 @@ namespace gc {
         
         struct TNode : MNode {
             virtual void debug(int lev) const override;
-            virtual void scan(ScanContext& context) const override;
+            virtual void _gc_scan(ScanContext& context) const override;
+            virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
             virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) override;
             virtual void _erase2(INode* i, SNode* k, int lev, INode* parent) override;
@@ -78,7 +80,8 @@ namespace gc {
         
         struct LNode : MNode {
             virtual void debug(int lev) const override;
-            virtual void scan(ScanContext& context) const override;
+            virtual void _gc_scan(ScanContext& context) const override;
+            virtual std::size_t _gc_bytes() const override;
             std::pair<Result, SNode*> lookup(Query q);
             MNode* inserted(Query q);
             std::pair<LNode*, SNode*> removed(SNode* k);
@@ -95,7 +98,9 @@ namespace gc {
             static CNode* make(SNode* sn1, SNode* sn2, int lev);
             CNode();
             virtual void debug(int lev) const override;
-            virtual void scan(ScanContext& context) const override;
+            virtual void _gc_scan(ScanContext& context) const override;
+            virtual std::size_t _gc_bytes() const override;
+
             CNode* inserted(std::uint64_t flag, int pos, BNode* child) const;
             CNode* updated(int pos, BNode* child) const;
             CNode* removed(int pos, std::uint64_t flag) const;
@@ -116,7 +121,9 @@ namespace gc {
             
             void debug();
             
-            virtual void scan(ScanContext& context) const override;
+            virtual void _gc_scan(ScanContext& context) const override;
+            virtual std::size_t _gc_bytes() const override;
+
             SNode* emplace(Query q);
             SNode* remove(SNode* k);
             
@@ -189,7 +196,7 @@ namespace gc {
             
         }
         
-        void INode::scan(ScanContext& context) const {
+        void INode::_gc_scan(ScanContext& context) const {
             context.push(main);
         }
         
@@ -237,7 +244,7 @@ namespace gc {
                    (_hash >> 6) & 63);
         }
         
-        void SNode::shade(ShadeContext& context) const {
+        void SNode::_gc_shade(ShadeContext& context) const {
             Color expected = context.WHITE;
             color.compare_exchange_strong(expected,
                                           context.BLACK(),
@@ -249,7 +256,7 @@ namespace gc {
             // no-op; SNode supports weak references
         }
         
-        void SNode::scan(ScanContext& context) const {
+        void SNode::_gc_scan(ScanContext& context) const {
             // no-op; SNode has no members
             // __builtin_trap();
             // TODO: SNode is a leaf; it shades black directly and need not
@@ -270,7 +277,7 @@ namespace gc {
             // no-op; SNode supports weak references
         }
         
-        Color SNode::sweep(SweepContext& context) {
+        Color SNode::_gc_sweep(SweepContext& context) {
             Color expected = context.WHITE;
             
             // Race to color the object RED before a mutator colors it BLACK
@@ -380,7 +387,7 @@ namespace gc {
             sn->debug(lev);
         }
         
-        void TNode::scan(ScanContext& context) const {
+        void TNode::_gc_scan(ScanContext& context) const {
             context.push(sn);
         }
         
@@ -424,7 +431,7 @@ namespace gc {
                 printf("\n");
         }
         
-        void LNode::scan(ScanContext& context) const {
+        void LNode::_gc_scan(ScanContext& context) const {
             context.push(sn);
             context.push(next);
         }
@@ -564,7 +571,7 @@ namespace gc {
             }
         }
         
-        void CNode::scan(ScanContext& context) const {
+        void CNode::_gc_scan(ScanContext& context) const {
             int num = __builtin_popcountll(this->bmp);
             for (int i = 0; i != num; ++i) {
                 this->array[i]->scan_weak(context);
@@ -758,7 +765,7 @@ namespace gc {
             root->debug(0);
         }
         
-        void Ctrie::scan(ScanContext& context) const {
+        void Ctrie::_gc_scan(ScanContext& context) const {
             gc::LOG("Ctrie::scan");
             context.push(root);
         }
@@ -791,6 +798,36 @@ namespace gc {
         SNode::~SNode() {
             printf("~\"%.*s\"\n", (int)_size, _data);
         }
+        
+        
+        
+        std::size_t CNode::_gc_bytes() const {
+            return sizeof(CNode) + sizeof(BNode*) * __builtin_popcountll(bmp);
+        }
+        
+        std::size_t Ctrie::_gc_bytes() const {
+            return sizeof(Ctrie);
+        }
+
+        std::size_t INode::_gc_bytes() const {
+            return sizeof(INode);
+        }
+
+        std::size_t LNode::_gc_bytes() const {
+            return sizeof(LNode);
+        }
+        
+        std::size_t SNode::_gc_bytes() const {
+            return sizeof(SNode) + _size + 1;
+        }
+
+        std::size_t TNode::_gc_bytes() const {
+            return sizeof(TNode);
+        }
+
+        
+
+        
 
     } // namespace _string
     

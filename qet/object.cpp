@@ -32,7 +32,7 @@ namespace lox {
     , method(method) {
     }
     
-    void ObjectBoundMethod::scan(gc::ScanContext &context) const {
+    void ObjectBoundMethod::_gc_scan(gc::ScanContext &context) const {
         lox::scan(receiver, context);
         context.push(method);
     }
@@ -43,7 +43,7 @@ namespace lox {
         initTable(&methods);
     }
 
-    void ObjectClass::scan(gc::ScanContext &context) const {
+    void ObjectClass::_gc_scan(gc::ScanContext &context) const {
         context.push(name);
         methods.scan(context);
     }
@@ -56,7 +56,7 @@ namespace lox {
             upvalues[i] = nullptr;
     }
     
-    void ObjectClosure::scan(gc::ScanContext &context) const {
+    void ObjectClosure::_gc_scan(gc::ScanContext &context) const {
         context.push(function);
         for (int i = 0; i < upvalueCount; i++)
             context.push(upvalues[i]);
@@ -68,7 +68,7 @@ namespace lox {
     , name(nullptr) {
     }
     
-    void ObjectFunction::scan(gc::ScanContext &context) const {
+    void ObjectFunction::_gc_scan(gc::ScanContext &context) const {
         lox::scan(chunk, context);
         context.push(name);
     }
@@ -78,7 +78,7 @@ namespace lox {
         initTable(&fields);
     }
     
-    void ObjectInstance::scan(gc::ScanContext &context) const {
+    void ObjectInstance::_gc_scan(gc::ScanContext &context) const {
         context.push(class_);
         fields.scan(context);
     }
@@ -87,38 +87,16 @@ namespace lox {
     : function(function) {
     }
     
-    void ObjectNative::scan(gc::ScanContext&) const {
-    }
-    
-    void ObjectRaw::scan(gc::ScanContext&) const {        
+    void ObjectNative::_gc_scan(gc::ScanContext&) const {
     }
         
-    /*
-    ObjectString::ObjectString(uint32_t length)
-    : length(length) {
-    }
-    
-    ObjectString::ObjectString(uint32_t hash, uint32_t length, const char* chars)
-    : hash(hash)
-    , length(length) {
-        memcpy(this->chars, chars, length);
-        this->chars[length] = '\0';
-        //gc.roots.push_back(Value(this));
-        tableSet(&gc.strings, this, Value());
-        //gc.roots.pop_back();
-    }
-    
-    void ObjectString::scan(gc::ScanContext& context) const {        
-    }
-     */
-    
     ObjectUpvalue::ObjectUpvalue(AtomicValue* slot)
     : closed(Value())
     , location(slot)
     , next(nullptr) {
     }
     
-    void ObjectUpvalue::scan(gc::ScanContext& context) const {
+    void ObjectUpvalue::_gc_scan(gc::ScanContext& context) const {
         using lox::scan;
         scan(*location, context);
         scan(closed, context);
@@ -191,19 +169,37 @@ namespace lox {
     void ObjectNative::printObject() {
         printf("<native fn>");
     }
-    
-    void ObjectRaw::printObject() {
-        printf("<raw buffer>");
-    }
-
-    /*
-    void ObjectString::printObject() {
-        printf("%s", chars);
-    }
-     */
-    
+        
     void ObjectUpvalue::printObject() {
         printf("upvalue");
+    }
+    
+    std::size_t ObjectBoundMethod::_gc_bytes() const {
+        return sizeof(ObjectBoundMethod);
+    }
+
+    std::size_t ObjectClass::_gc_bytes() const {
+        return sizeof(ObjectClass);
+    }
+    
+    std::size_t ObjectClosure::_gc_bytes() const {
+        return sizeof(ObjectClosure) + sizeof(ObjectUpvalue*) * upvalueCount;
+    }
+
+    std::size_t ObjectFunction::_gc_bytes() const {
+        return sizeof(ObjectFunction);
+    }
+
+    std::size_t ObjectInstance::_gc_bytes() const {
+        return sizeof(ObjectInstance);
+    }
+
+    std::size_t ObjectNative::_gc_bytes() const {
+        return sizeof(ObjectNative);
+    }
+
+    std::size_t ObjectUpvalue::_gc_bytes() const {
+        return sizeof(ObjectUpvalue);
     }
 
 

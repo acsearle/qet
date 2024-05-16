@@ -649,7 +649,7 @@ namespace gc {
                 root->debug(0);
             }
             
-            void scan(ScanContext& context) const {
+            void _gc_scan(ScanContext& context) const {
                 context.push(root);
             }
             

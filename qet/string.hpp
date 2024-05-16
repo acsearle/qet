@@ -121,9 +121,10 @@ namespace gc {
             
             // GC methods
             
-            virtual void shade(ShadeContext&) const override;
-            virtual void scan(ScanContext& context) const override;
-            virtual Color sweep(SweepContext&) override;
+            virtual void _gc_shade(ShadeContext&) const override;
+            virtual void _gc_scan(ScanContext& context) const override;
+            virtual Color _gc_sweep(SweepContext&) override;
+            virtual std::size_t _gc_bytes() const override;
             virtual void shade_weak(ShadeContext&) const override;
             virtual void scan_weak(ScanContext&) const override;
             

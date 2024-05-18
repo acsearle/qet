@@ -11,17 +11,6 @@
 
 namespace gc {
     
-    void Object::debug() const {
-        printf("%p gc::Object\n", this);
-    }
-
-    /*
-    void Leaf::debug() const {
-        printf("%p gc::Leaf\n", this);
-    }
-     */
-
-    
     void LOG(const char* format, ...) {
 #ifdef LOX_DEBUG_LOG_GC
         char buffer[256];
@@ -36,147 +25,136 @@ namespace gc {
 #endif
     }
     
-    struct ScanContextPrivate : ScanContext {
+    namespace this_thread {
         
-        void process() {
-            while (!_stack.empty()) {
-                Object const* object = _stack.top();
-                _stack.pop();
-                assert(object && object->color.load(RELAXED) == (BLACK()));
-                object->_gc_scan(*this);
+        void enter() {
+            assert(local.depth >= 0);
+            if (local.depth++)
+                return;
+            
+            // Create a new communication channel to the collector
+            
+            assert(local.channel == nullptr);
+            Channel* channel = local.channel = new Channel;
+            LOG("enters collectible state");
+            {
+                // Publish it to the collector's list of channels
+                std::unique_lock lock{global.mutex};
+                // channel->next = global.channels;
+                global.entrants.push_back(channel);
+                channel->WHITE = local.WHITE = global.WHITE;
+                channel->ALLOC = local.ALLOC = global.ALLOC;
             }
+            // Wake up the mutator
+            global.condition_variable.notify_all();
         }
         
-    };
-    
-    void enter() {
-
-        assert(local.depth >= 0);
-        if (local.depth++) {
-            return;
-        }
-                
-        // Create a new communication channel to the collector
-        
-        assert(local.channel == nullptr);
-        Channel* channel = local.channel = new Channel;
-        LOG("enters collectible state");
-        {
-            // Publish it to the collector's list of channels
-            std::unique_lock lock{global.mutex};
-            // channel->next = global.channels;
-            global.entrants.push_back(channel);
-            channel->WHITE = local.WHITE = global.WHITE;
-            channel->ALLOC = local.ALLOC = global.ALLOC;
-        }
-        // Wake up the mutator
-        global.condition_variable.notify_all();
-    }
-    
-    void leave() {
-        
-        assert(local.depth >= 0);
-        if (--local.depth) {
-            return;
-        }
-        
-        // Look up the communication channel
-        
-        Channel* channel = local.channel;
-        assert(channel);
-        bool pending;
-        {
-            std::unique_lock lock(channel->mutex);
-            LOG("leaves collectible state", channel);
-            // Was there a handshake requested?
-            pending = std::exchange(channel->pending, false);
-            channel->abandoned = true;
-            channel->dirty = local.dirty;
-            LOG("%spublishes %s, orphans", pending ? "handshakes, " : "", local.dirty ? "dirty" : "clean");
-            local.dirty = false;
-            if (channel->infants.empty()) {
-                channel->infants.swap(local.allocations);
-                assert(local.allocations.empty());
-            } else {
-                // we are leaving after we have acknowledged a handshake, but
-                // before the collector has taken our infants
-                while (!local.allocations.empty()) {
-                    Object* p = local.allocations.front();
-                    local.allocations.pop_front();
-                    channel->infants.push_back(p);
-                }
+        void leave() {
+            
+            assert(local.depth >= 0);
+            if (--local.depth) {
+                return;
             }
-            channel->request_infants = false;
-        }
-        // wake up the collector if it was already waiting on a handshake
-        if (pending) {
-            LOG("notifies collector");
-            channel->condition_variable.notify_all();
-        }
-        local.channel = nullptr;
-        
-    }
-    
-    
-    void handshake() {
-        Channel* channel = local.channel;
-        bool pending;
-        {
-            std::unique_lock lock(channel->mutex);
-            pending = channel->pending;
-            if (pending) {
-                LOG("handshaking");
-                
-                // LOG("lifetime alloc %zu", allocated);
-                
-                // LOG("was WHITE=%lld BLACK=%lld ALLOC=%lld", local.WHITE, local.BLACK, local.ALLOC);
-                
-                //bool flipped_ALLOC = local.ALLOC != channels[index].configuration.ALLOC;
-                
-                // (Configuration&) local = channels[index].configuration;
-                
-                // LOG("becomes WHITE=%lld BLACK=%lld ALLOC=%lld", local.WHITE, local.BLACK, local.ALLOC);
-                
+            
+            // Look up the communication channel
+            
+            Channel* channel = local.channel;
+            assert(channel);
+            bool pending;
+            {
+                std::unique_lock lock(channel->mutex);
+                LOG("leaves collectible state", channel);
+                // Was there a handshake requested?
+                pending = std::exchange(channel->pending, false);
+                channel->abandoned = true;
                 channel->dirty = local.dirty;
-                LOG("publishing %s", local.dirty ? "dirty" : "clean");
+                LOG("%spublishes %s, orphans", pending ? "handshakes, " : "", local.dirty ? "dirty" : "clean");
                 local.dirty = false;
-                
-                local.WHITE = channel->WHITE;
-                local.ALLOC = channel->ALLOC;
-
-                if (channel->request_infants) {
-                    LOG("publishing ?? new allocations");
-                    assert(channel->infants.empty());
+                if (channel->infants.empty()) {
                     channel->infants.swap(local.allocations);
                     assert(local.allocations.empty());
+                } else {
+                    // we are leaving after we have acknowledged a handshake, but
+                    // before the collector has taken our infants
+                    while (!local.allocations.empty()) {
+                        Object* p = local.allocations.front();
+                        local.allocations.pop_front();
+                        channel->infants.push_back(p);
+                    }
                 }
                 channel->request_infants = false;
-                
-                channel->pending = false;
-                
-            } else {
-                // LOG("handshake not requested");
+            }
+            // wake up the collector if it was already waiting on a handshake
+            if (pending) {
+                LOG("notifies collector");
+                channel->condition_variable.notify_all();
+            }
+            local.channel = nullptr;
+            
+        }
+        
+        
+        void handshake() {
+            Channel* channel = local.channel;
+            bool pending;
+            {
+                std::unique_lock lock(channel->mutex);
+                pending = channel->pending;
+                if (pending) {
+                    LOG("handshaking");
+                    
+                    // LOG("lifetime alloc %zu", allocated);
+                    
+                    // LOG("was WHITE=%lld BLACK=%lld ALLOC=%lld", local.WHITE, local.BLACK, local.ALLOC);
+                    
+                    //bool flipped_ALLOC = local.ALLOC != channels[index].configuration.ALLOC;
+                    
+                    // (Configuration&) local = channels[index].configuration;
+                    
+                    // LOG("becomes WHITE=%lld BLACK=%lld ALLOC=%lld", local.WHITE, local.BLACK, local.ALLOC);
+                    
+                    channel->dirty = local.dirty;
+                    LOG("publishing %s", local.dirty ? "dirty" : "clean");
+                    local.dirty = false;
+                    
+                    local.WHITE = channel->WHITE;
+                    local.ALLOC = channel->ALLOC;
+                    
+                    if (channel->request_infants) {
+                        LOG("publishing ?? new allocations");
+                        assert(channel->infants.empty());
+                        channel->infants.swap(local.allocations);
+                        assert(local.allocations.empty());
+                    }
+                    channel->request_infants = false;
+                    
+                    channel->pending = false;
+                    
+                } else {
+                    // LOG("handshake not requested");
+                }
+            }
+            
+            if (pending) {
+                LOG("notifies collector");
+                channel->condition_variable.notify_all();
+                std::size_t count = 0;
+                for (Object* ref : local.roots) {
+                    ++count;
+                    shade(ref);
+                }
+                LOG("shades %ld roots", count);
             }
         }
         
-        if (pending) {
-            LOG("notifies collector");
-            channel->condition_variable.notify_all();
-            std::size_t count = 0;
-            for (Object* ref : local.roots) {
-                ++count;
-                shade(ref);
-            }
-            LOG("shades %ld roots", count);
-        }
-    }
+    } // namespace this_thread
     
     
     void collect() {
         
         pthread_setname_np("C0");
         
-        gc::enter();
+        gc::this_thread::enter();
         
         size_t freed = 0;
         
@@ -186,7 +164,7 @@ namespace gc {
         deque<Object*> blacklist;
         deque<Object*> whitelist;
         
-        ScanContextPrivate working;
+        ScanContext working;
 
         std::vector<Channel*> mutators, mutators2;
                 
@@ -274,7 +252,7 @@ namespace gc {
                     }
 
                     // handshake ourself!
-                    gc::handshake();
+                    gc::this_thread::handshake();
                     
                     // Receive acknowledgements and recent allocations
                     while (!mutators2.empty()) {
@@ -363,7 +341,7 @@ namespace gc {
                         objects.pop_front();
                         assert(object);
                         //object->debug();
-                        Color expected = GRAY;
+                        Color expected = Color::GRAY;
                         object->color.compare_exchange_strong(expected,
                                                               local.BLACK(),
                                                               std::memory_order_relaxed,
@@ -371,11 +349,16 @@ namespace gc {
                         if (expected == (local.BLACK())) {
                             ++blacks;
                             blacklist.push_back(object);
-                        } else if (expected == GRAY) { // GRAY -> BLACK
+                        } else if (expected == Color::GRAY) { // GRAY -> BLACK
                             ++grays;
                             object->_gc_scan(working);
                             blacklist.push_back(object);
-                            working.process();
+                            while (!working._stack.empty()) {
+                                Object const* object = working._stack.top();
+                                working._stack.pop();
+                                assert(object && object->color.load(std::memory_order::relaxed) == (working.BLACK()));
+                                object->_gc_scan(working);
+                            }
                         } else if (expected == local.WHITE) {
                             ++whites;
                             whitelist.push_back(object);
@@ -437,7 +420,7 @@ namespace gc {
                     }
                 }
                 // autoshake
-                gc::handshake();
+                gc::this_thread::handshake();
                 // Receive acknowledgements and recent allocations
                 while (!mutators2.empty()) {
                     Channel* channel = mutators2.back();
@@ -502,7 +485,7 @@ namespace gc {
                     } else if (after == (local.BLACK())) {
                         ++blacks;
                         blacklist.push_back(object);
-                    } else if (after == RED) {
+                    } else if (after == Color::RED) {
                         ++reds;
                         redlist.push_back(object);
                     }
@@ -525,7 +508,7 @@ namespace gc {
             // All colours exist
             
             {
-                local.WHITE ^= 1;
+                local.WHITE = Color{static_cast<std::intptr_t>(local.WHITE) ^ 1};
                 working.WHITE = local.WHITE;
                 std::unique_lock lock{global.mutex};
                 global.WHITE = local.WHITE;
@@ -565,7 +548,7 @@ namespace gc {
                 }
             }
             // autoshake
-            gc::handshake();
+            gc::this_thread::handshake();
             // Receive acknowledgements and recent allocations
             while (!mutators2.empty()) {
                 Channel* channel = mutators2.back();
@@ -622,13 +605,25 @@ namespace gc {
             
         }
         
-        leave();
+        this_thread::leave();
         
     }
     
     
     
-    
+    const char* ColorCString(Color color) {
+        if (color == local.WHITE) {
+            return "WHITE";
+        } else if (color == local.BLACK()) {
+            return "BLACK";
+        } else if (color == Color::GRAY) {
+            return "GRAY";
+        } else if (color == Color::RED) {
+            return "RED";
+        } else {
+            abort();
+        }
+    }
     
     
 

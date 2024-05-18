@@ -15,7 +15,7 @@ namespace lox {
         char buffer[1024];
         for (;;) {
             {
-                gc::handshake();
+                gc::this_thread::handshake();
                 gc::shade(&vm);
             }
             printf("> ");
@@ -144,7 +144,7 @@ print clock() - start;
 int main(int argc, const char * argv[]) {
     using namespace lox;
     pthread_setname_np("M0");
-    gc::enter();
+    gc::this_thread::enter();
     ObjectString::enter();
     std::thread collector{gc::collect};
     initGC();
@@ -152,7 +152,7 @@ int main(int argc, const char * argv[]) {
     vm->initVM();
     vm->interpret(preamble, preamble + sizeof(preamble) - 1);
     {
-        gc::handshake();
+        gc::this_thread::handshake();
         gc::shade(vm);
     }
     if (true) {
@@ -167,7 +167,7 @@ int main(int argc, const char * argv[]) {
     }
     // vm->freeVM();
     freeGC();
-    gc::leave();
+    gc::this_thread::leave();
     collector.join();
     return 0;
 }

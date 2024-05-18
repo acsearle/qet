@@ -19,123 +19,134 @@
 #include "deque.hpp"
 
 namespace gc {
-    
-    // TODO:
-    //
-    // Do we need to be able to 
-    
-    enum class extra_val_t : std::size_t {};
-        
-    using Color = std::intptr_t;
-    // inline constexpr Color WHITE = 0
-    // inline constexpr Color BLACK = 1
-    inline constexpr Color GRAY = 2;
-    inline constexpr Color RED  = 3;
-    
-    // WHITE -> not yet reached
-    // GRAY  -> reached but must scan fields
-    // BLACK -> reached and no further work required
-    // RED   -> weak-reachable but not eligible for upgrade to strong
-    
-    using Order = std::memory_order;
-    inline constexpr Order RELAXED = std::memory_order_relaxed;
-    inline constexpr Order ACQUIRE = std::memory_order_acquire;
-    inline constexpr Order RELEASE = std::memory_order_release;
-    inline constexpr Order ACQ_REL = std::memory_order_acq_rel;
-    
+
+    // base of all garbage collection participants
     struct Object;
-    struct Global;
-    struct Local;
-    struct Channel;
-    struct CollectionContext;
-    struct ShadeContext;
-    struct ScanContext;
-    struct SweepContext;
-    template<typename> struct StrongPtr;
-    template<typename> struct Atomic;
+    
+    // base adapter for nodes without gc fields
+    template<typename> struct Leaf;
+    
+    // nonresizeable gc array, as in T[]
     template<typename> struct Array;
     
+    // type for gc pointer fields of gc objects
+    // provides write barrier and atomic access for collector
+    // provides correct defaults for a field written by one mutator thread and
+    // simultaneously (only) read by the collector thread
+    template<typename> struct StrongPtr;
+    
+    // Atomic<StrongPtr> provides the finer control over memory ordering
+    // required when the pointer is written by multiple mutator threads
+    template<typename> struct Atomic;
+
+    // workloop for the collector
+    [[noreturn]] void collect();
+
+    namespace this_thread {
+        
+        // indicates a thread will participate in garbage collection
+        // - the thread may allocate gc::objects
+        // - the thread must periodically call handshake
+        // - the thread must mark any roots between handshakes
+        void enter();
+        
+        // indicates a thread will no longer participate in garbage collection
+        // - the thread cannot allocate
+        // - the thread will not handshake
+        // - the thread will not mark roots
+        void leave();
+        // if the thread "holds" gc objects across a suspension, they must be
+        // scanned by some other mechanism, such as handing them over to
+        // another thread
+        
+        // called periodically
+        // - synchronizes state with collector
+        //   - allocations since last handshake
+        //   - what colors to shade and alloc
+        //   - dirty flag (did we shade any objects WHITE -> GRAY since last handshake?)
+        void handshake();
+        
+    }
+
+    // internal garbage collection interface
+
+    struct Channel;
+    struct CollectionContext;
+    struct Global;
+    struct Local;
+    struct ScanContext;
+    struct ShadeContext;
+    struct SweepContext;
+
+    void* alloc(std::size_t count);
+    void free(Object*); // <-- delete is convenient...
     void LOG(const char* format, ...);
-
-    void enter();
-    void handshake();
-    void leave();
     
-    // Mutators shade their roots, and their pointer writes
-    //     WHITE -> GRAY
-    
-    // The collector scans GRAY objects, shading their fields
-    //     WHITE -> GRAY
-    // and then blackening the object
-    //     GRAY  -> BLACK
-    
-    // The collector sweeps
-    //     WHITE -> (free)
-    
-    // The mutator makes work for the collector by marking objects GRAY
-    
-    // Scanning only terminates when the collector has found no GRAY objects
-    // and all threads have made no GRAY objects
-    
-    
-    
-    
-    
-    
-    
-    // Leaf nodes have no fields; the mutator may directly them WHITE -> BLACK
-    
-    // Weak leaf nodes may be upgraded by a mutator
-    //     WHITE -> BLACK
-    // or they may be condemned by
-
-    
-    
-    
-    
-    
-   
-    
+    // must shade involved objects whenever mutating the graph
+    // - StrongPtr automates this for common use cases
     void shade(const Object* object);
     void shade(const Object* object, ShadeContext& context);
 
-    [[noreturn]] void collect();
+    enum class Color : std::intptr_t {
+        // WHITE = 0 or 1, not (yet) reached
+        // BLACK = 1 or 0, reached and (will be) scanned
+        GRAY = 2, //       reached but not yet scanned
+        RED  = 3, //       dying but still weak-reachable
+    };
+    
+    const char* ColorCString(Color); // thread local interpretation of values
+    
+
+    
+    
     
     
     struct Object {
         
+    protected:
+        
         mutable std::atomic<Color> color;
-        
-        static void* operator new(std::size_t);
-        static void* operator new(std::size_t, extra_val_t);
-        
+                
         Object();
         Object(Object const&);
-        virtual ~Object() = default;
         Object& operator=(Object const&) = delete;
         Object& operator=(Object&&) = delete;
         
-        virtual void _gc_shade(ShadeContext&) const;
+        // commonly overridden methods
+        virtual ~Object() = default;
+        virtual void _gc_debug() const;
         virtual void _gc_scan(ScanContext&) const = 0;
-        [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
         virtual std::size_t _gc_bytes() const = 0;
 
+        // rarely overridden methods
+        virtual void _gc_shade(ShadeContext&) const;
+        virtual void _gc_scan_into(ScanContext&) const;
+        [[nodiscard]] virtual Color _gc_sweep(SweepContext&);
         virtual void _gc_shade_weak(ShadeContext& context) const;
         virtual void _gc_scan_weak(ScanContext& context) const;
         
-        virtual void debug() const;
+        // friends that access protected methods
+        friend struct ScanContext;
+        friend void shade(const Object*, ShadeContext&);
+        friend void collect();
 
     }; // struct Object
     
 
     // Provide implementations for leaf objects (which have no GC fields)
-    
-    template<typename T>
+        
+    template<typename  T>
     struct Leaf : T {
+        
         static_assert(std::is_convertible_v<T*, Object*>);
+        
+    protected:
+        
         virtual ~Leaf() override = default;
         virtual void _gc_shade(ShadeContext&) const override final;
         virtual void _gc_scan(ScanContext&) const override final;
+        virtual void _gc_scan_into(ScanContext&) const override final;
+        
     };
 
         
@@ -152,18 +163,49 @@ namespace gc {
     
     template<typename T>
     struct Array final : Object {
+
         std::size_t _capacity;
-        T _data[0];
+        T _data[0]; // <-- flexible array member
+
         static Array* make(std::size_t count);
+
         virtual ~Array() override;
+        virtual void _gc_debug() const override;
         virtual void _gc_scan(ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
+                
+        using value_type = T;
+        using size_type = std::size_t;
+        using difference_type = std::ptrdiff_t;
+        using reference = T&;
+        using const_reference = const T&;
+        using pointer = T*;
+        using const_pointer = const T*;
+        using iterator = T*;
+        using const_iterator = const T*;
         
-        // static Array* make(T* first, T* last);
-        // T* begin();
-        // T* end();
-        // T& operator[](std::size_t i);
+        reference operator[](size_type pos) { return _data[pos]; }
+        const_reference operator[](size_type pos) const { return _data[pos]; }
         
+        reference front() { return _data[0]; }
+        const_reference front() const { return _data[0]; }
+        
+        reference back() { return _data[_capacity - 1]; }
+        const_reference back() const { return _data[_capacity - 1]; }
+        
+        pointer data() { return _data; }
+        const_pointer data() const { return _data; }
+        
+        iterator begin() { return _data; }
+        const_iterator begin() const { return _data; }
+        const_iterator cbegin() const { return _data; }
+
+        iterator end() { return _data + _capacity; }
+        const_iterator end() const { return _data + _capacity; }
+        const_iterator cend() const { return _data + _capacity; }
+        
+        size_type size() const { return _capacity; }
+
     };
         
     
@@ -171,7 +213,7 @@ namespace gc {
     template<typename T>
     struct Atomic<StrongPtr<T>> {
         
-        std::atomic<T*> ptr;
+        std::atomic<T*> inner;
         
         Atomic() = default;
         Atomic(Atomic const&) = delete;
@@ -183,11 +225,11 @@ namespace gc {
         explicit Atomic(std::nullptr_t);
         explicit Atomic(T*);
         
-        void store(T* desired, Order order);
-        T* load(Order order) const;
-        T* exchange(T* desired, Order order);
-        bool compare_exchange_weak(T*& expected, T* desired, Order success, Order failure);
-        bool compare_exchange_strong(T*& expected, T* desired, Order success, Order failure);
+        void store(T* desired, std::memory_order order);
+        T* load(std::memory_order order) const;
+        T* exchange(T* desired, std::memory_order order);
+        bool compare_exchange_weak(T*& expected, T* desired, std::memory_order success, std::memory_order failure);
+        bool compare_exchange_strong(T*& expected, T* desired, std::memory_order success, std::memory_order failure);
         
     }; // Atomic<StrongPtr<T>>
     
@@ -195,7 +237,7 @@ namespace gc {
     template<typename T>
     struct StrongPtr {
         
-        Atomic<StrongPtr<T>> ptr;
+        Atomic<StrongPtr<T>> inner;
         
         StrongPtr() = default;
         StrongPtr(StrongPtr const&);
@@ -220,6 +262,8 @@ namespace gc {
         T* operator->() const;
         T& operator*() const;
         bool operator!() const;
+        
+        T* get() const;
                 
     }; // StrongPtr<T>
 
@@ -232,8 +276,8 @@ namespace gc {
         std::mutex mutex;
         std::condition_variable condition_variable;
         
-        Color WHITE = 0;
-        Color ALLOC = 0;
+        Color WHITE = Color{0};
+        Color ALLOC = Color{0};
         
         std::vector<Channel*> entrants;
         deque<Object*> roots;
@@ -249,22 +293,24 @@ namespace gc {
         bool pending = false;
         bool dirty = false;
         bool request_infants = false;
-        Color WHITE = -1;
-        Color ALLOC = -1;
+        Color WHITE = Color{-1};
+        Color ALLOC = Color{-1};
         deque<Object*> infants;
     };
 
     
     // Thread local state
     struct Local {
-        Color WHITE = -1;
-        Color BLACK() const { return WHITE^1; }
-        Color ALLOC = -1;
+        Color WHITE = Color{-1};
+        Color BLACK() const { return Color{static_cast<std::intptr_t>(WHITE)^1}; }
+        Color ALLOC = Color{-1};
         int depth = 0;
         bool dirty = false;
         deque<Object*> allocations;
         deque<Object*> roots;
         Channel* channel = nullptr;
+        std::int64_t bytes_allocated;
+        std::int64_t bytes_freed;
     };
     
     // Context passed to gc operations to avoid, for example, repeated atomic
@@ -272,7 +318,7 @@ namespace gc {
     
     struct CollectionContext {
         Color WHITE;
-        Color BLACK() const { return WHITE^1; }
+        Color BLACK() const { return Color{static_cast<std::intptr_t>(WHITE)^1}; }
     };
 
     struct ShadeContext : CollectionContext {
@@ -280,17 +326,20 @@ namespace gc {
     
     struct ScanContext : CollectionContext {
         
-        void push(Object const*const& field);
-        // void push(Leaf const*const& field);
+        void push(const Object*const& field) {
+            if (field) {
+                field->_gc_scan_into(*this);
+            }
+        }
 
         template<typename T> 
-        void push(StrongPtr<T> const& field) {
-            push(field.ptr.load(ACQUIRE));
+        void push(const StrongPtr<T>& field) {
+            push(field.inner.load(std::memory_order::acquire));
         }
         
         template<typename T> 
-        void push(Atomic<StrongPtr<T>> const& field) {
-            push(field.load(ACQUIRE));
+        void push(const Atomic<StrongPtr<T>>& field) {
+            push(field.load(std::memory_order::acquire));
         }
 
         std::stack<Object const*, std::vector<Object const*>> _stack;
@@ -314,46 +363,47 @@ namespace gc {
     }
 
     inline void shade(const Object* object) {
-        if (object) {
-            ShadeContext context;
-            context.WHITE = local.WHITE;
-            object->_gc_shade(context);
-        }
+        ShadeContext context;
+        context.WHITE = local.WHITE;
+        shade(object, context);
     }
     
+    // TODO: pass in some AllocContext explicitly?
     
-    inline void* Object::operator new(std::size_t count) {
-        return ::operator new(count);
-    }
-    
-    inline void* Object::operator new(std::size_t count, extra_val_t extra) {
-        return operator new(count + static_cast<std::size_t>(extra));
-    }
-    
-    inline Object::Object()
+    inline Object::Object() 
     : color(local.ALLOC) {
         assert(local.depth); // <-- catch allocations that are not inside a mutator state
         local.allocations.push_back(this);
     }
     
-    inline Object::Object(const Object& other)
-    : color(local.ALLOC) {
-        assert(local.depth); // <-- catch allocations that are not inside a mutator state
-        local.allocations.push_back(this);
-    }
+    inline Object::Object(const Object& other) : Object() {}
 
     inline void Object::_gc_shade(ShadeContext& context) const {
         Color expected = context.WHITE;
         if (color.compare_exchange_strong(expected,
-                                          GRAY,
-                                          RELAXED,
-                                          RELAXED)) {
+                                          Color::GRAY,
+                                          std::memory_order::relaxed,
+                                          std::memory_order::relaxed)) {
+            // TODO: make this part of ShadeContext to avoid TLS lookup?
             local.dirty = true;
+        }
+    }
+    
+    inline void Object::_gc_scan_into(ScanContext& context) const {
+        Color expected = context.WHITE;
+        if (color.compare_exchange_strong(expected,
+                                          context.BLACK(),
+                                          std::memory_order::relaxed,
+                                          std::memory_order::relaxed)) {
+            // WHITE -> BLACK; schedule for scanning
+            context._stack.push(this);
+        } else {
+            assert(expected == context.BLACK() || expected == Color::GRAY);
         }
     }
 
     inline Color Object::_gc_sweep(SweepContext& context) {
-        Color color = this->color.load(RELAXED);
+        Color color = this->color.load(std::memory_order::relaxed);
         if (color == context.WHITE) {
             delete this;
         }
@@ -374,56 +424,65 @@ namespace gc {
         Color expected = context.WHITE;
         this->color.compare_exchange_strong(expected,
                                             context.BLACK(),
-                                            RELAXED,
-                                            RELAXED);
+                                            std::memory_order::relaxed,
+                                            std::memory_order::relaxed);
     }
 
     template<typename T>
     void Leaf<T>::_gc_scan(ScanContext& context) const {
     }
+    
+    template<typename T>
+    void Leaf<T>::_gc_scan_into(ScanContext& context) const {
+        Color expected = context.WHITE;
+        this->color.compare_exchange_strong(expected,
+                                            context.BLACK(),
+                                            std::memory_order::relaxed,
+                                            std::memory_order::relaxed);
+    }
 
         
     template<typename T>
     Atomic<StrongPtr<T>>::Atomic(T* desired)
-    : ptr(desired) {
+    : inner(desired) {
         shade(desired);
     }
     
     template<typename T>
-    T* Atomic<StrongPtr<T>>::load(Order order) const {
-        return ptr.load(order);
+    T* Atomic<StrongPtr<T>>::load(std::memory_order order) const {
+        return inner.load(order);
     }
     
     template<typename T> 
-    void Atomic<StrongPtr<T>>::store(T* desired, Order order) {
+    void Atomic<StrongPtr<T>>::store(T* desired, std::memory_order order) {
         shade(desired);
-        T* old = ptr.exchange(desired, order);
+        T* old = inner.exchange(desired, order);
         shade(old);
     }
 
     template<typename T>
-    T* Atomic<StrongPtr<T>>::exchange(T* desired, Order order) {
+    T* Atomic<StrongPtr<T>>::exchange(T* desired, std::memory_order order) {
         shade(desired);
-        T* old = ptr.exchange(desired, order);
+        T* old = inner.exchange(desired, order);
         shade(old);
         return old;
     }
 
     template<typename T>
     bool Atomic<StrongPtr<T>>::compare_exchange_strong(T*& expected,
-                                          T* desired,
-                                          Order success,
-                                          Order failure) {
-        return (ptr.compare_exchange_strong(expected, desired, success, failure)
+                                                       T* desired,
+                                                       std::memory_order success,
+                                                       std::memory_order failure) {
+        return (inner.compare_exchange_strong(expected, desired, success, failure)
                 && (shade(expected), shade(desired), true));
     }
     
     template<typename T>
     bool Atomic<StrongPtr<T>>::compare_exchange_weak(T*& expected,
-                                          T* desired,
-                                          Order success,
-                                          Order failure) {
-        return (ptr.compare_exchange_weak(expected, desired, success, failure)
+                                                     T* desired,
+                                                     std::memory_order success,
+                                                     std::memory_order failure) {
+        return (inner.compare_exchange_weak(expected, desired, success, failure)
                 && (shade(expected), shade(desired), true));
     }
 
@@ -431,123 +490,91 @@ namespace gc {
     
     template<typename T>
     StrongPtr<T>::StrongPtr(StrongPtr const& other)
-    : ptr(other.ptr.load(RELAXED)) {
+    : inner(other.ptr.load(std::memory_order::relaxed)) {
     }
 
     template<typename T>
     StrongPtr<T>::StrongPtr(StrongPtr&& other)
-    : ptr(other.ptr.load(RELAXED)) {
+    : inner(other.ptr.load(std::memory_order::relaxed)) {
     }
     
     template<typename T>
     StrongPtr<T>& StrongPtr<T>::operator=(StrongPtr<T> const& other) {
-        ptr.store(other.ptr.load(RELAXED), RELEASE);
+        inner.store(other.inner.load(std::memory_order::relaxed), std::memory_order::release);
         return *this;
     }
     
     template<typename T>
     StrongPtr<T>& StrongPtr<T>::operator=(StrongPtr<T>&& other) {
-        ptr.store(other.ptr.load(RELAXED), RELEASE);
+        inner.store(other.inner.load(std::memory_order::relaxed), std::memory_order::release);
         return *this;
     }
     
     template<typename T>
     bool StrongPtr<T>::operator==(const StrongPtr& other) const {
-        return ptr.load(RELAXED) == other.ptr.load(RELAXED);
+        return inner.load(std::memory_order::relaxed) == other.ptr.load(std::memory_order::relaxed);
     }
     
     template<typename T>
     StrongPtr<T>::StrongPtr(std::nullptr_t)
-    : ptr(nullptr) {
+    : inner(nullptr) {
     }
     
     template<typename T>
     StrongPtr<T>& StrongPtr<T>::operator=(std::nullptr_t) {
-        ptr.store(nullptr, RELEASE);
+        inner.store(nullptr, std::memory_order::relaxed);
         return *this;
     }
     
     template<typename T>
     bool StrongPtr<T>::operator==(std::nullptr_t) const {
-        return ptr.load(RELAXED) == nullptr;
+        return inner.load(std::memory_order::relaxed) == nullptr;
     }
     
     template<typename T>
     StrongPtr<T>::StrongPtr(T* object)
-    : ptr(object) {
+    : inner(object) {
     }
     
     template<typename T>
     StrongPtr<T>& StrongPtr<T>::operator=(T* other) {
-        ptr.store(other, RELEASE);
+        inner.store(other, std::memory_order::release);
         return *this;
     }
     
     template<typename T>
     StrongPtr<T>::operator T*() const {
-        return ptr.load(RELAXED);
+        return inner.load(std::memory_order::relaxed);
     }
     
     template<typename T>
     bool StrongPtr<T>::operator==(T* other) const {
-        return ptr.load(RELAXED) == other;
+        return inner.load(std::memory_order::relaxed) == other;
     }
     
     template<typename T>
     StrongPtr<T>::operator bool() const {
-        return ptr.load(RELAXED);
+        return inner.load(std::memory_order::relaxed);
     }
     
     template<typename T>
     T* StrongPtr<T>::operator->() const {
-        T* a = ptr.load(RELAXED);
+        T* a = inner.load(std::memory_order::relaxed);
         assert(a);
         return a;
     }
 
     template<typename T>
     T& StrongPtr<T>::operator*() const {
-        T* a = ptr.load(RELAXED);
+        T* a = inner.load(std::memory_order::relaxed);
         assert(a);
         return *a;
     }
 
     template<typename T>
     bool StrongPtr<T>::operator!() const {
-        return !ptr.load(RELAXED);
+        return !inner.load(std::memory_order::relaxed);
     }
-    
-    // WHITE OBJECT -> BLACK PUSH - we process it later
-    // GRAY OBJECT -> NOOP - we find it later in worklist
-    // BLACK OBJECT -> no need to schedule it
-    // WHITE LEAF -> BLACK NOPUSH - no need to schedule
-    // GRAY LEAF -> impossible?
-    
-    inline void ScanContext::push(Object const* const& object) {
-        Color expected = WHITE;
-        if (object &&
-            object->color.compare_exchange_strong(expected,
-                                                  BLACK(),
-                                                  RELAXED,
-                                                  RELAXED)) {
-            _stack.push(object);
-        }
-    }
-
-    /*
-    inline void ScanContext::push(Leaf const* const& object) {
-        Color expected = WHITE;
-        if (object) {
-            object->color.compare_exchange_strong(expected,
-                                                  BLACK(),
-                                                  RELAXED,
-                                                  RELAXED);
-            // Leaf nodes are never pushed as they never produce more work
-            // TODO: this relies on compile-time knowledge, and in turn we
-            // can't rely on actual leaf nodes never being pushed
-        }
-    }
-     */
     
     inline void scan(Object* object, ScanContext& context) {
         if (object)
@@ -561,7 +588,7 @@ namespace gc {
     
     template<typename T>
     Array<T>* Array<T>::make(std::size_t n) {
-        Array<T>* p = new(extra_val_t{n * sizeof(T)}) Array<T>;
+        Array<T>* p = new (alloc(sizeof(Array<T>) + sizeof(T) * n)) Array<T>;
         p->_capacity = n;
         std::uninitialized_value_construct_n(p->_data, p->_capacity);
         return p;
@@ -569,9 +596,8 @@ namespace gc {
 
     template<typename T>
     void Array<T>::_gc_scan(ScanContext& context) const {
-        LOG("Array scan");
-        for (std::size_t i = 0; i != _capacity; ++i)
-            _data[i].scan(context);
+        for (const T& x : *this)
+            x.scan(context);
     }
     
     template<typename T>
@@ -579,53 +605,37 @@ namespace gc {
         return sizeof(Array<T>) + sizeof(T) * _capacity;
     }
 
-
-    /*
     template<typename T>
-    void scan(const StrongPtr<T>& self, ScanContext& context) {
-        LOG("StrongPtr scan");
-        context.push(self.ptr.ptr.load(std::memory_order_acquire));
+    void Array<T>::_gc_debug() const {
+        printf("%p %s Array<T>{%zu, ...}\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)), _capacity);
     }
-     */
-    
-    /*
-    template<typename T>
-    void StrongPtr<T>::scan(ScanContext& context) const {
-        context.push(ptr.ptr.load(std::memory_order_acquire));
-    }
-     */
 
+    template<typename T>
+    void scan(const std::vector<T>&, gc::ScanContext& context);
 
 } // namespace gc
 
+namespace gc {
+    
+    inline void* alloc(std::size_t count) {
+        local.bytes_allocated += count;
+        return malloc(count);
+    }
+    
+    template<typename T>
+    void scan(const std::vector<T>& v, gc::ScanContext& context) {
+        for (auto&& x : v)
+            scan(x, context);
+    }
+    
+    inline void Object::_gc_debug() const {
+        printf("%p %s %s\n",
+               this,
+               ColorCString(color.load(std::memory_order_relaxed)),
+               typeid(*this).name());
+    }
+    
+} // namespace gc
 
-
-/*
-namespace gc2 {
-    
-    struct Allocation {
-        std::atomic<std::intptr_t> color;
-    };
-    
-    struct Class {
-    };
-    
-    struct Object {
-        Class* _class;
-        unsigned char _data[8];
-    };
-    
-    
-    template<typename PromiseType>
-    struct Coroutine {
-        void (*_resume)();
-        void (*_destroy)();
-        PromiseType promise;
-        
-        
-    };
-    
-};
- */
 
 #endif /* gc_hpp */

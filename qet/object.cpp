@@ -49,12 +49,14 @@ namespace lox {
     }
     
 
+    /*
     ObjectClosure::ObjectClosure(ObjectFunction* function)
     : function(function)
     , upvalueCount(function->upvalueCount) {
         for (int i = 0; i < upvalueCount; i++)
             upvalues[i] = nullptr;
     }
+     */
     
     void ObjectClosure::_gc_scan(gc::ScanContext &context) const {
         context.push(function);
@@ -170,6 +172,38 @@ namespace lox {
     void ObjectUpvalue::printObject() {
         printf("upvalue");
     }
+
+    
+    
+    void ObjectBoundMethod::_gc_debug() const {
+        printf("%p %s ObjectBoundMethod\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectClass::_gc_debug() const {
+        printf("%p %s ObjectClass\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectClosure::_gc_debug() const {
+        printf("%p %s ObjectClosure\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectFunction::_gc_debug() const {
+        printf("%p %s ObjectFunction\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectInstance::_gc_debug() const {
+        printf("%p %s ObjectInstance\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectNative::_gc_debug() const {
+        printf("%p %s ObjectNative\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
+    void ObjectUpvalue::_gc_debug() const {
+        printf("%p %s ObjectUpvalue\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+    
+
     
     std::size_t ObjectBoundMethod::_gc_bytes() const {
         return sizeof(ObjectBoundMethod);
@@ -198,5 +232,15 @@ namespace lox {
     std::size_t ObjectUpvalue::_gc_bytes() const {
         return sizeof(ObjectUpvalue);
     }
-
+    
+    ObjectClosure* ObjectClosure::make(ObjectFunction* function) {
+        ObjectClosure* p = new(gc::alloc(sizeof(ObjectClosure)
+                                         + sizeof(ObjectUpvalue*)
+                                         * function->upvalueCount)) ObjectClosure;
+        p->function = function;
+        p->upvalueCount = function->upvalueCount;
+        std::uninitialized_fill_n(p->upvalues, p->upvalueCount, nullptr);
+        return p;
+    }
+    
 } // namespace lox

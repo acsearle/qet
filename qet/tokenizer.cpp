@@ -41,6 +41,7 @@ namespace lox {
         virtual Token next() override;
         
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
 
     };
     
@@ -243,5 +244,10 @@ namespace lox {
     std::size_t ConcreteTokenizer::_gc_bytes() const {
         return sizeof(ConcreteTokenizer);
     }
+    
+    void ConcreteTokenizer::_gc_debug() const {
+        printf("%p %s ConcreteTokenizer\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
+    }
+
     
 } // namespace lox

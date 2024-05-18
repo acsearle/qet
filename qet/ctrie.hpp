@@ -127,8 +127,8 @@ namespace gc {
                 mutable Atomic<StrongPtr<MNode>> main;
                 explicit INode(MNode* desired) : main(desired) {}
                 virtual void debug(int lev) const override {
-                    auto p =  main.load(ACQUIRE);
-                    printf("INode(%lx): ",this->color.load(RELAXED));
+                    auto p =  main.load(std::memory_order::acquire);
+                    printf("INode(%lx): ",this->color.load(std::memory_order::relaxed));
                     p->debug(lev);
                 }
                 virtual void scan(ScanContext& context) const override {
@@ -147,7 +147,7 @@ namespace gc {
                     return Ctrie::_erase(this, k, lev + 6, i);
                 }
                 virtual BNode* _resurrect() const override {
-                    return this->main.load(ACQUIRE)->_resurrect(this);
+                    return this->main.load(std::memory_order::acquire)->_resurrect(this);
                 }
                 virtual MNode* _contract(CNode* cn, int lev) const override {
                     return cn;
@@ -164,11 +164,11 @@ namespace gc {
                     Color expected = context.WHITE;
                     color.compare_exchange_strong(expected,
                                                   context.BLACK(),
-                                                  RELAXED,
-                                                  RELAXED);
+                                                  std::memory_order::relaxed,
+                                                  std::memory_order::relaxed);
                 }
                 virtual void debug(int lev) const override {
-                    printf("SNode(%lx)\n", this->color.load(RELAXED));
+                    printf("SNode(%lx)\n", this->color.load(std::memory_order::relaxed));
                 }
                 virtual Result _find(INode* i, Key k, int lev, INode* parent,
                                      CNode* cn, std::uint64_t flag, int pos) const override {
@@ -191,8 +191,8 @@ namespace gc {
                     MNode* expected = cn;
                     if (i->main.compare_exchange_strong(expected,
                                                         ncn,
-                                                        RELEASE,
-                                                        RELAXED)) {
+                                                        std::memory_order::release,
+                                                        std::memory_order::relaxed)) {
                         return Ok(value);
                     } else {
                         return Restart();
@@ -208,8 +208,8 @@ namespace gc {
                     MNode* expected = cn;
                     if (i->main.compare_exchange_strong(expected,
                                                         cntr,
-                                                        RELEASE,
-                                                        RELAXED)) {
+                                                        std::memory_order::release,
+                                                        std::memory_order::relaxed)) {
                         return Ok(value);
                     } else {
                         return Restart();
@@ -230,7 +230,7 @@ namespace gc {
                 SNode* sn;
                 
                 virtual void debug(int lev) const override {
-                    printf("TNode(%lx): ", this->color.load(RELAXED));
+                    printf("TNode(%lx): ", this->color.load(std::memory_order::relaxed));
                     sn->debug(lev);
                 }
                 virtual void scan(ScanContext& context) const override {
@@ -259,8 +259,8 @@ namespace gc {
                     MNode* desired = toContracted(ncn, lev);
                     return p->main.compare_exchange_strong(expected,
                                                            desired,
-                                                           RELEASE,
-                                                           RELAXED);
+                                                           std::memory_order::release,
+                                                           std::memory_order::relaxed);
                 }
                 virtual BNode* _resurrect(INode* parent) const override {
                     return sn;
@@ -271,7 +271,7 @@ namespace gc {
                 SNode* sn;
                 const LNode* next;
                 virtual void debug(int lev) const override {
-                    printf("LNode(%lx,%p): ", this->color.load(RELAXED), sn);
+                    printf("LNode(%lx,%p): ", this->color.load(std::memory_order::relaxed), sn);
                     if (next)
                         next->debug(lev);
                     else
@@ -373,8 +373,8 @@ namespace gc {
                     MNode* expected = this;
                     if (i->main.compare_exchange_strong(expected,
                                                         inserted(k, v),
-                                                        RELEASE,
-                                                        RELAXED)) {
+                                                        std::memory_order::release,
+                                                        std::memory_order::relaxed)) {
                         return NotFound(); // but, success
                     } else {
                         return Restart();
@@ -388,8 +388,8 @@ namespace gc {
                     MNode* desired = nln->next ? nln : entomb(nln->sn);
                     if (i->main.compare_exchange_strong(expected,
                                                         desired,
-                                                        RELEASE,
-                                                        RELAXED)) {
+                                                        std::memory_order::release,
+                                                        std::memory_order::relaxed)) {
                         return Ok(v);
                     } else {
                         return Restart();
@@ -419,7 +419,7 @@ namespace gc {
                     if (a1 != a2) {
                         // different hash at lev
                         std::uint64_t flag2 = std::uint64_t{1} << a2;
-                        CNode* c = new (extra_val_t{sizeof(BNode) * 2}) CNode;
+                        CNode* c = CNode::make(2); // new (extra_val_t{sizeof(BNode) * 2}) CNode;
                         c->bmp = flag1 | flag2;
                         int pos1 = a1 > a2;
                         int pos2 = a2 > a1;
@@ -428,7 +428,7 @@ namespace gc {
                         return c;
                     } else {
                         // same hash at lev
-                        CNode* c = new (extra_val_t{sizeof(BNode)}) CNode;
+                        CNode* c = CNode::make(1); // new (extra_val_t{sizeof(BNode)}) CNode;
                         // TODO: check for exact hash collision immediately and
                         // install an LNode instead
                         // But: if this happens enough to matter then we have
@@ -459,7 +459,7 @@ namespace gc {
                 
                 virtual void debug(int lev) const override {
                     lev += 6;
-                    printf("CNode(%lx,%#llx):\n", this->color.load(RELAXED), bmp);
+                    printf("CNode(%lx,%#llx):\n", this->color.load(std::memory_order::relaxed), bmp);
                     int j = 0;
                     for (int i = 0; i != 64; ++i) {
                         std::uint64_t flag = std::uint64_t{1} << i;
@@ -480,7 +480,7 @@ namespace gc {
                 CNode* inserted(std::uint64_t flag, int pos, BNode* child) const {
                     //printf("CNode inserted\n");
                     auto n = __builtin_popcountll(bmp);
-                    CNode* b = new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
+                    CNode* b = CNode::make(n + 1); // new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
                     assert(!(this->bmp & flag));
                     b->bmp = this->bmp | flag;
                     std::memcpy(b->array, this->array, sizeof(BNode*) * pos);
@@ -496,7 +496,7 @@ namespace gc {
                 CNode* updated(int pos, BNode* child) const {
                     //printf("CNode updated\n");
                     auto n = __builtin_popcountll(bmp);
-                    CNode* b = new (extra_val_t{sizeof(BNode*) * n}) CNode;
+                    CNode* b = CNode::make(n); // new (extra_val_t{sizeof(BNode*) * n}) CNode;
                     b->bmp = this->bmp;
                     std::memcpy(b->array, this->array, sizeof(BNode*) * n);
                     b->array[pos] = child;
@@ -512,7 +512,7 @@ namespace gc {
                     assert(__builtin_popcountll((flag - 1) & this->bmp) == pos);
                     auto n = __builtin_popcountll(bmp);
                     assert(pos < n);
-                    CNode* b = new (extra_val_t{sizeof(BNode*) * (n - 1)}) CNode;
+                    CNode* b = CNode::make(n - 1); // new (extra_val_t{sizeof(BNode*) * (n - 1)}) CNode;
                     b->bmp = this->bmp ^ flag;
                     std::memcpy(b->array, this->array, sizeof(BNode*) * pos);
                     std::memcpy(b->array + pos, this->array + pos + 1, sizeof(BNode*) * (n - 1 - pos));
@@ -540,7 +540,10 @@ namespace gc {
                         MNode* expected = this;
                         SNode* sn =  new SNode(k, v);
                         MNode* desired = inserted(flag, pos, sn);
-                        if (i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED)) {
+                        if (i->main.compare_exchange_strong(expected,
+                                                            desired,
+                                                            std::memory_order::release,
+                                                            std::memory_order::relaxed)) {
                             return Ok(sn->value);
                         } else {
                             return Restart();
@@ -559,7 +562,7 @@ namespace gc {
                     assert(sub);
                     Result result = sub->_erase(i, k, lev, parent, this, flag, pos);
                     if (result.tag == OK) {
-                        i->main.load(ACQUIRE)->_erase2(i, k, lev, parent);
+                        i->main.load(std::memory_order::acquire)->_erase2(i, k, lev, parent);
                     }
                     return result;
                 }
@@ -568,7 +571,9 @@ namespace gc {
                     CNode* m = this;
                     MNode* expected = m;
                     MNode* desired = toCompressed(m, lev);
-                    i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED);
+                    i->main.compare_exchange_strong(expected, desired, 
+                                                    std::memory_order::release,
+                                                    std::memory_order::relaxed);
                 }
                 
                 virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
@@ -591,7 +596,7 @@ namespace gc {
             
             static MNode* toCompressed(CNode* cn, int lev) {
                 int num = __builtin_popcountll(cn->bmp);
-                CNode* ncn = new (extra_val_t{sizeof(BNode*) * num}) CNode;
+                CNode* ncn = CNode::make(num); // new (extra_val_t{sizeof(BNode*) * num}) CNode;
                 ncn->bmp = cn->bmp;
                 ShadeContext context;
                 context.WHITE = local.WHITE;
@@ -610,13 +615,13 @@ namespace gc {
             }
             
             static void clean(INode* i, int lev) {
-                i->main.load(ACQUIRE)->vcleanA(i, lev);
+                i->main.load(std::memory_order::acquire)->vcleanA(i, lev);
             }
             
             static void cleanParent(INode* p, INode* i, std::size_t hc, int lev) {
                 for (;;) {
-                    MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
-                    MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
+                    MNode* m = i->main.load(std::memory_order::acquire); // <-- TODO we only redo this if it is a TNode and therefore final
+                    MNode* pm = p->main.load(std::memory_order::acquire); // <-- TODO get this from the failed CAS
                     if (pm->vcleanParentA(p, i, hc, lev, m))
                         return;
                 }
@@ -630,15 +635,15 @@ namespace gc {
             }
             
             static Result _find(INode* i, Key k, int lev, INode* parent) {
-                return i->main.load(ACQUIRE)->_find(i, k, lev, parent);
+                return i->main.load(std::memory_order::acquire)->_find(i, k, lev, parent);
             }
             
             static Result _insert_or_assign(INode* i, Key k, T v, int lev, INode* parent) {
-                return i->main.load(ACQUIRE)->_insert_or_assign(i, k, v, lev, parent);
+                return i->main.load(std::memory_order::acquire)->_insert_or_assign(i, k, v, lev, parent);
             }
             
             static Result _erase(INode* i, Key k, int lev, INode* parent) {
-                return i->main.load(ACQUIRE)->_erase(i, k, lev, parent);
+                return i->main.load(std::memory_order::acquire)->_erase(i, k, lev, parent);
             }
             
             Ctrie() : root(new INode(new CNode)) {

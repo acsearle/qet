@@ -62,30 +62,34 @@ namespace gc {
             a->value = std::move(value);
             
             // Load the tail
-            Node* b = tail.load(ACQUIRE);
+            Node* b = tail.load(std::memory_order::acquire);
             for (;;) {
                 assert(b);
                 // If tail->next is null, install the new node
                 Node* next = nullptr;
-                if (b->next.compare_exchange_strong(next, a, RELEASE, ACQUIRE))
+                if (b->next.compare_exchange_strong(next, a,
+                                                    std::memory_order::release,
+                                                    std::memory_order::acquire))
                     return;
                 assert(next);
                 // tail is lagging, advance it to the next value
-                if (tail.compare_exchange_strong(b, next, RELEASE, ACQUIRE))
+                if (tail.compare_exchange_strong(b, next,
+                                                 std::memory_order::release,
+                                                 std::memory_order::acquire))
                     b = next;
                 // Either way, b is now our last observation of tail
             }
         }
         
         bool pop(T& value) {
-            Node* expected = head.load(ACQUIRE);
+            Node* expected = head.load(std::memory_order::acquire);
             for (;;) {
                 assert(expected);
-                Node* next = expected->next.load(ACQUIRE);
+                Node* next = expected->next.load(std::memory_order::acquire);
                 if (next == nullptr)
                     // The queue contains only the sentinel node
                     return false;
-                if (head.compare_exchange_strong(expected, next, RELEASE, ACQUIRE)) {
+                if (head.compare_exchange_strong(expected, next, std::memory_order::release, std::memory_order::acquire)) {
                     // We moved head forward
                     value = std::move(next->value);
                     return true;

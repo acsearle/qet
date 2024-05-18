@@ -73,9 +73,9 @@ namespace lox {
 
 
 
-        void _gc_scan(gc::ScanContext&) const override;
+        virtual void _gc_scan(gc::ScanContext&) const override;
         virtual std::size_t _gc_bytes() const override;
-
+        virtual void _gc_debug() const override;
         
     };
     

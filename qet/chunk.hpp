@@ -16,14 +16,11 @@
 
 namespace lox {
     
-    template<typename T>
-    void scan(const std::vector<T>&, gc::ScanContext& context);
-
     struct Source
-    : gc::Object {
+    : gc::Leaf<gc::Object> {
                 
-        std::vector<char> text;
         std::vector<char> name;
+        std::vector<char> text;
         
     };
     
@@ -55,13 +52,6 @@ namespace lox {
     }; // struct Chunk
     
     void scan(const Chunk&, gc::ScanContext&);
-    
-    template<typename T>
-    void scan(const std::vector<T>& v, gc::ScanContext& context) {
-        for (auto&& x : v)
-            scan(x, context);
-    }
-
         
 } // namespace lox
 

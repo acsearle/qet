@@ -68,11 +68,12 @@ namespace gc {
         struct TNode; // Tomb      : Main
         
         struct ANode : lox::Object {
-            virtual void debug() const override = 0;
-            virtual void debug(int lev) const = 0;
+            virtual void _gc_debug() const override = 0;
             
             virtual void printObject() override { printf("gc::_string::ANode"); }
         };
+        
+        MNode* toCompressed(CNode* cn, int lev);
         
         struct BNode : ANode {
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
@@ -81,9 +82,11 @@ namespace gc {
                                                            CNode* cn, std::uint64_t flag, int pos)  = 0;
             virtual BNode* _resurrect() = 0;
             virtual MNode* _contract(CNode* parent, int lev) = 0;
-            virtual void debug(int lev) const override = 0;
-            virtual void debug() const override = 0;
+            virtual void _gc_debug() const override = 0;
             virtual void printObject() override { printf("gc::_string::BNode"); }
+            
+            friend MNode* toCompressed(CNode* cn, int lev);
+            friend class CNode;
 
         }; // struct BNode
         
@@ -102,11 +105,14 @@ namespace gc {
             static SNode* make(const char*, const char*);
             static SNode* make(const char*, std::size_t);
             static SNode* make(char);
+            
+            static SNode* _make(Query q);
+
 
             // instance methods
             
             bool invariant() const {
-                return ((color.load(RELAXED) != GRAY) &&
+                return ((color.load(std::memory_order_relaxed) != Color::GRAY) &&
                         (_hash == std::hash<std::string_view>()(view())));
             }
             
@@ -128,7 +134,6 @@ namespace gc {
             
             // Ctrie node methods
             
-            virtual void debug(int lev) const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
                                                              CNode* cn, std::uint64_t flag, int pos) override;
             virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent,
@@ -140,7 +145,7 @@ namespace gc {
             std::size_t _size;
             char _data[0];
             
-            virtual void debug() const override;
+            virtual void _gc_debug() const override;
             virtual void printObject() override { // printf("gc::_string::SNode");
                 printf("%.*s", (int) _size, _data);
             }

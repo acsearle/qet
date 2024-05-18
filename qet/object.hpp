@@ -77,6 +77,8 @@ namespace lox {
         ObjectClosure* method;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
+
     };
     
     struct ObjectClass : Object {
@@ -87,6 +89,8 @@ namespace lox {
         Table methods;
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
+
     };
     
     struct ObjectClosure : Object {
@@ -95,9 +99,11 @@ namespace lox {
         ObjectFunction* function;
         int upvalueCount;
         ObjectUpvalue* upvalues[0];  // flexible array member
-        explicit ObjectClosure(ObjectFunction* function);
+        // explicit ObjectClosure(ObjectFunction* function);
+        static ObjectClosure* make(ObjectFunction* function);
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
     };
     
     
@@ -110,6 +116,7 @@ namespace lox {
         ObjectFunction();
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
     };
     
     struct ObjectInstance : Object {
@@ -119,6 +126,8 @@ namespace lox {
         explicit ObjectInstance(ObjectClass* class_);
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
+
 };
     
     struct ObjectNative : gc::Leaf<Object> {
@@ -127,6 +136,8 @@ namespace lox {
         NativeFn function;
         explicit ObjectNative(NativeFn function);
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
+
     };
         
     ObjectString* takeString(char* chars, int length);
@@ -140,6 +151,8 @@ namespace lox {
         explicit ObjectUpvalue(AtomicValue* slot);
         virtual void _gc_scan(gc::ScanContext& context) const override;
         virtual std::size_t _gc_bytes() const override;
+        virtual void _gc_debug() const override;
+
     };
     
     void printObject(Value value);

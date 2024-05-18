@@ -44,13 +44,11 @@ namespace gc {
             virtual bool vcleanParentB(INode* p, INode* i, std::size_t hc, int lev,
                                        MNode* m,
                                        CNode* cn, std::uint64_t flag, int pos) { return true; }
-            virtual void debug() const override = 0;
-            virtual void debug(int lev) const override = 0;
+            virtual void _gc_debug() const override = 0;
         }; // struct MNode
         
         struct INode : BNode {
             explicit INode(MNode* desired);
-            virtual void debug(int lev) const override;
             virtual void _gc_scan(ScanContext& context) const override ;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent,
@@ -60,11 +58,10 @@ namespace gc {
             virtual BNode* _resurrect() override;
             virtual MNode* _contract(CNode* cn, int lev) override;
             mutable Atomic<StrongPtr<MNode>> main;
-            virtual void debug() const override { printf("%p gc::_string::INode\n", this); }
+            virtual void _gc_debug() const override;
         }; // struct INode
         
         struct TNode : MNode {
-            virtual void debug(int lev) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             virtual std::pair<Result, SNode*> _emplace(INode* i, Query q, int lev, INode* parent) override;
@@ -75,11 +72,10 @@ namespace gc {
                                        CNode* cn, std::uint64_t flag, int pos) override;
             virtual BNode* _resurrect(INode* parent) override;
             SNode* sn;
-            virtual void debug() const override { printf("%p gc::_string::TNode\n", this); }
+            virtual void _gc_debug() const override;
         }; // struct TNode
         
         struct LNode : MNode {
-            virtual void debug(int lev) const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
             std::pair<Result, SNode*> lookup(Query q);
@@ -89,15 +85,16 @@ namespace gc {
             virtual std::pair<Result, SNode*> _erase(INode* i, SNode* k, int lev, INode* parent) override;
             SNode* sn;
             LNode* next;
-            virtual void debug() const override { printf("%p gc::_string::LNode\n", this); }
+            virtual void _gc_debug() const override;
         }; // struct LNode
         
         
         struct CNode : MNode {
             static std::pair<std::uint64_t, int> flagpos(std::size_t hash, int lev, std::uint64_t bmp);
             static CNode* make(SNode* sn1, SNode* sn2, int lev);
+            static CNode* make(std::size_t count);
             CNode();
-            virtual void debug(int lev) const override;
+            virtual void _gc_debug() const override;
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
 
@@ -109,9 +106,9 @@ namespace gc {
             virtual void vcleanA(INode* i, int lev) override;
             virtual bool vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
                                        MNode* m) override ;
-            virtual void debug() const override;
             std::uint64_t bmp;
             BNode* array[0];
+                        
         }; // struct CNode
         
         
@@ -123,6 +120,7 @@ namespace gc {
             
             virtual void _gc_scan(ScanContext& context) const override;
             virtual std::size_t _gc_bytes() const override;
+            virtual void _gc_debug() const override;
 
             SNode* emplace(Query q);
             SNode* remove(SNode* k);
@@ -141,7 +139,7 @@ namespace gc {
         
         MNode* toCompressed(CNode* cn, int lev) {
             int num = __builtin_popcountll(cn->bmp);
-            CNode* ncn = new (extra_val_t{sizeof(BNode*) * num}) CNode;
+            CNode* ncn = CNode::make(num); // new (extra_val_t{sizeof(BNode*) * num}) CNode;
             ncn->bmp = cn->bmp;
             ShadeContext context;
             context.WHITE = local.WHITE;
@@ -160,13 +158,13 @@ namespace gc {
         }
         
         void clean(INode* i, int lev) {
-            i->main.load(ACQUIRE)->vcleanA(i, lev);
+            i->main.load(std::memory_order::acquire)->vcleanA(i, lev);
         }
         
         void cleanParent(INode* p, INode* i, std::size_t hc, int lev) {
             for (;;) {
-                MNode* m = i->main.load(ACQUIRE); // <-- TODO we only redo this if it is a TNode and therefore final
-                MNode* pm = p->main.load(ACQUIRE); // <-- TODO get this from the failed CAS
+                MNode* m = i->main.load(std::memory_order::acquire); // <-- TODO we only redo this if it is a TNode and therefore final
+                MNode* pm = p->main.load(std::memory_order::acquire); // <-- TODO get this from the failed CAS
                 if (pm->vcleanParentA(p, i, hc, lev, m))
                     return;
             }
@@ -189,13 +187,6 @@ namespace gc {
         
         INode::INode(MNode* desired) : main(desired) {}
         
-        void INode::debug(int lev) const {
-            auto p =  main.load(ACQUIRE);
-            printf("INode(%lx): ",this->color.load(RELAXED));
-            p->debug(lev);
-            
-        }
-        
         void INode::_gc_scan(ScanContext& context) const {
             context.push(main);
         }
@@ -211,7 +202,7 @@ namespace gc {
         }
         
         BNode* INode::_resurrect() {
-            return this->main.load(ACQUIRE)->_resurrect(this);
+            return this->main.load(std::memory_order::acquire)->_resurrect(this);
         }
         
         MNode* INode::_contract(CNode* cn, int lev) {
@@ -227,6 +218,10 @@ namespace gc {
             return make(Query(std::string_view(data, size)));
         }
         
+        SNode* SNode::_make(Query q) {
+            return new(alloc(sizeof(SNode) + q.view.size() + 1)) SNode(q);
+        }
+        
         
         SNode::SNode(Query q)
         : _hash(q.hash)
@@ -234,16 +229,7 @@ namespace gc {
             std::memcpy(_data, q.view.data(), _size);
             _data[_size] = '\0';
         }
-        
-        void SNode::debug(int lev) const {
-            printf("SNode(%lx,\"%.*s\") %ld %ld\n",
-                   this->color.load(RELAXED),
-                   (int) _size,
-                   _data,
-                   _hash & 63,
-                   (_hash >> 6) & 63);
-        }
-                
+                        
         void SNode::_gc_shade_weak(ShadeContext& context) const {
             // no-op; SNode supports weak references
         }
@@ -253,27 +239,29 @@ namespace gc {
         }
         
         Color SNode::_gc_sweep(SweepContext& context) {
-            
-            // Race to transition WHITE -> RED before a mutator transitions WHITE -> BLACK
             Color expected = context.WHITE;
-            this->color.compare_exchange_strong(expected, RED, RELAXED, RELAXED);
-            
+            this->color.compare_exchange_strong(expected, 
+                                                Color::RED,
+                                                std::memory_order::relaxed,
+                                                std::memory_order::relaxed);
             if (expected == context.WHITE) {
-                printf("Turned a string RED\n");
-                // WHITE -> RED
-                // We won the race, now race any losing mutators to remove this
-                // by identity while they attempt to replace it with a new
-                // equivalent node
+                printf("%p WHITE -> RED gc::String{%zx,%zd,\"%.*s\"}\n",
+                       this,
+                       _hash,
+                       _size,
+                       (int)_size,
+                       _data);
                 global_string_ctrie->remove(this);
-                return RED;
+                return Color::RED;
             } else if (expected == (context.BLACK())) {
-                // We lost the race, the string survives
-                printf("Preserved a BLACK string\n");
                 return expected;
-            } else if (expected == RED) {
-                // Second sweep, no mutators can see us
-                printf("Deleting a RED string\n");
-                
+            } else if (expected == Color::RED) {
+                printf("%p RED -> X gc::String{%zx,%zd,\"%.*s\"}\n",
+                       this,
+                       _hash,
+                       _size,
+                       (int)_size,
+                       _data);
                 delete this;
                 return context.WHITE;
             } else {
@@ -287,16 +275,16 @@ namespace gc {
             bool equivalent = sn->_hash == q.hash && sn->view() == q.view;
             if (equivalent) {
                 Color expected = local.WHITE;
-                Color desired = expected ^ 1;
+                Color desired{static_cast<std::intptr_t>(expected) ^ 1};
                 // Attempt upgrade
-                this->color.compare_exchange_strong(expected, desired, RELAXED, RELAXED);
-                assert(expected != GRAY);
-                if (expected != RED) {
+                this->color.compare_exchange_strong(expected, desired, std::memory_order::relaxed, std::memory_order::relaxed);
+                assert(expected != Color::GRAY);
+                if (expected != Color::RED) {
                     return {OK, this};
                 }
             }
             // We must install a new node
-            SNode* nsn = new (extra_val_t{q.view.size()+1}) SNode(q);
+            SNode* nsn = SNode::_make(q); // new (extra_val_t{q.view.size()+1}) SNode(q);
             CNode* ncn = cn->updated(pos,
                                            (equivalent
                                             ? (BNode*) nsn
@@ -304,8 +292,8 @@ namespace gc {
             MNode* expected = cn;
             if (i->main.compare_exchange_strong(expected,
                                                 ncn,
-                                                RELEASE,
-                                                RELAXED)) {
+                                                std::memory_order::release,
+                                                std::memory_order::relaxed)) {
                 return {OK, nsn};
             } else {
                 return {RESTART, nullptr};
@@ -323,8 +311,8 @@ namespace gc {
             MNode* expected = cn;
             if (i->main.compare_exchange_strong(expected,
                                                 cntr,
-                                                RELEASE,
-                                                RELAXED)) {
+                                                std::memory_order::release,
+                                                std::memory_order::relaxed)) {
                 return {OK, this};
             } else {
                 return {RESTART, nullptr};
@@ -358,11 +346,6 @@ namespace gc {
         
         
         
-        void TNode::debug(int lev) const {
-            printf("TNode(%lx): ", this->color.load(RELAXED));
-            sn->debug(lev);
-        }
-        
         void TNode::_gc_scan(ScanContext& context) const {
             context.push(sn);
         }
@@ -389,22 +372,12 @@ namespace gc {
             MNode* desired = toContracted(ncn, lev);
             return p->main.compare_exchange_strong(expected,
                                                    desired,
-                                                   RELEASE,
-                                                   RELAXED);
+                                                   std::memory_order::release,
+                                                   std::memory_order::relaxed);
         }
         
         void TNode::_erase2(INode* i, SNode* k, int lev, INode* parent) {
             cleanParent(parent, i, k->_hash, lev - 6);
-        }
-        
-        
-        
-        void LNode::debug(int lev) const {
-            printf("LNode(%lx,%p): ", this->color.load(RELAXED), sn);
-            if (next)
-                next->debug(lev);
-            else
-                printf("\n");
         }
         
         void LNode::_gc_scan(ScanContext& context) const {
@@ -442,7 +415,7 @@ namespace gc {
                             d->next = e;
                             d = e;
                         } else {
-                            d->sn = new (extra_val_t{q.view.size()+1}) SNode(q);
+                            d->sn = SNode::_make(q); //new (extra_val_t{q.view.size()+1}) SNode(q);
                             d->next = b->next;
                             gc::shade(d->next);
                             return c;
@@ -454,7 +427,7 @@ namespace gc {
                 if (a == nullptr) {
                     // We did not find the same key, so just prepend it
                     LNode* b = new LNode;
-                    b->sn = new (extra_val_t{q.view.size()+1}) SNode(q);
+                    b->sn = SNode::_make(q); //new (extra_val_t{q.view.size()+1}) SNode(q);
                     b->next = this;
                     gc::shade(b->next);
                     return b;
@@ -504,8 +477,8 @@ namespace gc {
             MNode* expected = this;
             if (i->main.compare_exchange_strong(expected,
                                                 inserted(q),
-                                                RELEASE,
-                                                RELAXED)) {
+                                                std::memory_order::release,
+                                                std::memory_order::relaxed)) {
                 return {OK, nullptr};
             } else {
                 return {RESTART, nullptr};
@@ -520,33 +493,15 @@ namespace gc {
             MNode* desired = nln->next ? nln : entomb(nln->sn);
             if (i->main.compare_exchange_strong(expected,
                                                 desired,
-                                                RELEASE,
-                                                RELAXED)) {
+                                                std::memory_order::release,
+                                                std::memory_order::relaxed)) {
                 return {OK, v};
             } else {
                 return {RESTART, nullptr};
             }
         }
         
-        
-        void CNode::debug() const {
-            printf("%p gc::_string::CNode{%llx}", this, bmp);
-        }
-        
-        void CNode::debug(int lev) const {
-            lev += 6;
-            printf("CNode(%lx,%#llx):\n", this->color.load(RELAXED), bmp);
-            int j = 0;
-            for (int i = 0; i != 64; ++i) {
-                std::uint64_t flag = std::uint64_t{1} << i;
-                if (bmp & flag) {
-                    printf("%*s[%d]: ", lev, "", i);
-                    array[j]->debug(lev);
-                    j++;
-                }
-            }
-        }
-        
+                
         void CNode::_gc_scan(ScanContext& context) const {
             int num = __builtin_popcountll(this->bmp);
             for (int i = 0; i != num; ++i) {
@@ -564,7 +519,7 @@ namespace gc {
         CNode* CNode::inserted(std::uint64_t flag, int pos, BNode* child) const {
             //printf("CNode inserted\n");
             auto n = __builtin_popcountll(bmp);
-            CNode* b = new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
+            CNode* b = CNode::make(n+1); // new (extra_val_t{sizeof(BNode*) * (n + 1)}) CNode;
             assert(!(this->bmp & flag));
             b->bmp = this->bmp | flag;
             std::memcpy(b->array, this->array, sizeof(BNode*) * pos);
@@ -580,7 +535,7 @@ namespace gc {
         CNode* CNode::updated(int pos, BNode* child) const {
             //printf("CNode updated\n");
             auto n = __builtin_popcountll(bmp);
-            CNode* b = new (extra_val_t{sizeof(BNode*) * n}) CNode;
+            CNode* b = CNode::make(n); //new (extra_val_t{sizeof(BNode*) * n}) CNode;
             b->bmp = this->bmp;
             std::memcpy(b->array, this->array, sizeof(BNode*) * n);
             b->array[pos] = child;
@@ -596,7 +551,7 @@ namespace gc {
             assert(__builtin_popcountll((flag - 1) & this->bmp) == pos);
             auto n = __builtin_popcountll(bmp);
             assert(pos < n);
-            CNode* b = new (extra_val_t{sizeof(BNode*) * (n - 1)}) CNode;
+            CNode* b = CNode::make(n-1); //new (extra_val_t{sizeof(BNode*) * (n - 1)}) CNode;
             b->bmp = this->bmp ^ flag;
             std::memcpy(b->array, this->array, sizeof(BNode*) * pos);
             std::memcpy(b->array + pos, this->array + pos + 1, sizeof(BNode*) * (n - 1 - pos));
@@ -619,7 +574,7 @@ namespace gc {
             if (a1 != a2) {
                 // different hash at lev
                 std::uint64_t flag2 = std::uint64_t{1} << a2;
-                CNode* c = new (extra_val_t{sizeof(BNode) * 2}) CNode;
+                CNode* c = CNode::make(2); //new (extra_val_t{sizeof(BNode) * 2}) CNode;
                 c->bmp = flag1 | flag2;
                 int pos1 = a1 > a2;
                 int pos2 = a2 > a1;
@@ -628,7 +583,7 @@ namespace gc {
                 return c;
             } else {
                 // same hash at lev
-                CNode* c = new (extra_val_t{sizeof(BNode)}) CNode;
+                CNode* c = CNode::make(1); // new (extra_val_t{sizeof(BNode)}) CNode;
                 c->bmp = flag1;
                 if (lev + 6 < 64) {
                     c->array[0] = new INode(make(sn1, sn2, lev + 6));
@@ -651,14 +606,19 @@ namespace gc {
             }
         }
         
+        CNode* CNode::make(std::size_t count) {
+            return new(alloc(sizeof(CNode) + sizeof(BNode*) * count)) CNode;
+        }
+
+        
         std::pair<Result, SNode*> CNode::_emplace(INode* i, Query q, int lev, INode* parent) {
             CNode* cn = this;
             auto [flag, pos] = flagpos(q.hash, lev, cn->bmp);
             if (!(flag & cn->bmp)) {
                 MNode* expected = this;
-                SNode* sn = new (extra_val_t{q.view.size()+1}) SNode(q);
+                SNode* sn = SNode::_make(q); //new (extra_val_t{q.view.size()+1}) SNode(q);
                 MNode* desired = inserted(flag, pos, sn);
-                if (i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED)) {
+                if (i->main.compare_exchange_strong(expected, desired, std::memory_order::release, std::memory_order::relaxed)) {
                     return {OK, sn};
                 } else {
                     return {RESTART, nullptr};
@@ -677,7 +637,7 @@ namespace gc {
             assert(sub);
             auto [res, value] = sub->_erase(i, k, lev, parent, this, flag, pos);
             if (res == OK) {
-                i->main.load(ACQUIRE)->_erase2(i, k, lev, parent);
+                i->main.load(std::memory_order::acquire)->_erase2(i, k, lev, parent);
             }
             return {res, value};
         }
@@ -686,7 +646,10 @@ namespace gc {
             CNode* m = this;
             MNode* expected = m;
             MNode* desired = toCompressed(m, lev);
-            i->main.compare_exchange_strong(expected, desired, RELEASE, RELAXED);
+            i->main.compare_exchange_strong(expected, 
+                                            desired,
+                                            std::memory_order::release,
+                                            std::memory_order::relaxed);
         }
         
         bool CNode::vcleanParentA(INode* p, INode* i, std::size_t hc, int lev,
@@ -715,7 +678,7 @@ namespace gc {
         
         
         std::pair<Result, SNode*> iinsert(INode* i, Query q, int lev, INode* parent) {
-            return i->main.load(ACQUIRE)->_emplace(i, q, lev, parent);
+            return i->main.load(std::memory_order::acquire)->_emplace(i, q, lev, parent);
         }
         
         
@@ -723,7 +686,7 @@ namespace gc {
         
         
         std::pair<Result, SNode*> iremove(INode* i, SNode* k, int lev, INode* parent) {
-            return i->main.load(ACQUIRE)->_erase(i, k, lev, parent);
+            return i->main.load(std::memory_order::acquire)->_erase(i, k, lev, parent);
         }
         
         
@@ -737,8 +700,7 @@ namespace gc {
         }
         
         void Ctrie::debug() {
-            printf("%p: Ctrie\n", this);
-            root->debug(0);
+            printf("%p %s gc::_string::Ctrie{}\n", this, ColorCString(color.load(std::memory_order::relaxed)));
         }
         
         void Ctrie::_gc_scan(ScanContext& context) const {
@@ -766,17 +728,7 @@ namespace gc {
                 return v;
             }
         }
-        
-        void SNode::debug() const {
-            printf("%p gc::String{%zx,%zd,\"%.*s\"}\n", this, _hash, _size, (int)_size, _data);
-        }
-        
-        SNode::~SNode() {
-            printf("~\"%.*s\"\n", (int)_size, _data);
-        }
-        
-        
-        
+                
         std::size_t CNode::_gc_bytes() const {
             return sizeof(CNode) + sizeof(BNode*) * __builtin_popcountll(bmp);
         }
@@ -802,8 +754,55 @@ namespace gc {
         }
 
         
-        
+                
+        void CNode::_gc_debug() const {
+            printf("%p %s gc::_string::CNode{%llx, ...}\n",
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)), bmp);
+        }
 
+        void Ctrie::_gc_debug() const {
+            printf("%p %s gc::_string::Ctrie\n",
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)));
+        }
+        
+        void INode::_gc_debug() const {
+            printf("%p %s gc::_string::INode\n",
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)));
+        }
+        
+        void LNode::_gc_debug() const {
+            printf("%p %s gc::_string::LNode\n",
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)));
+        }
+
+        void SNode::_gc_debug() const {
+            printf("%p %s gc::String{%zx,%zd,\"%.*s\"}\n", 
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)),
+                   _hash,
+                   _size,
+                   (int)_size,
+                   _data);
+        }
+        
+        SNode::~SNode() {
+            printf("%p RED -> ~ gc::String{%zx,%zd,\"%.*s\"}\n",
+                   this,
+                   _hash,
+                   _size,
+                   (int)_size,
+                   _data);       
+        }
+
+        void TNode::_gc_debug() const {
+            printf("%p %s gc::_string::TNode\n",
+                   this,
+                   ColorCString(color.load(std::memory_order::relaxed)));
+        }
 
 
         

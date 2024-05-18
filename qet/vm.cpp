@@ -298,11 +298,11 @@ push(Value(a op b)); \
 #endif
             
             // handshake every 128 instructions
-            if (!(qqq & 127)) {
+            //if (!(qqq & 127)) {
                 // printf("---\n");
-                gc::handshake();
+                gc::this_thread::handshake();
                 gc::shade(this);
-            }
+            //}
 
             
             
@@ -487,7 +487,8 @@ push(Value(a op b)); \
                 }
                 case OPCODE_CLOSURE: {
                     ObjectFunction* function = AS_FUNCTION(READ_CONSTANT());
-                    ObjectClosure* closure = new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
+                    // ObjectClosure* closure = new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
+                    ObjectClosure* closure = ObjectClosure::make(function);
                     push(Value(closure));
                     for (int i = 0; i < closure->upvalueCount; i++) {
                         uint8_t isLocal = READ_BYTE();
@@ -555,7 +556,7 @@ push(Value(a op b)); \
         if (function == NULL) return INTERPRET_COMPILE_ERROR;
         
         push(Value(function));
-        ObjectClosure* closure = new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
+        ObjectClosure* closure = ObjectClosure::make(function); // new(gc::extra_val_t{function->upvalueCount * sizeof(ObjectUpvalue*)}) ObjectClosure(function);
         pop();
         push(Value(closure));
         call(closure, 0);
@@ -577,6 +578,10 @@ push(Value(a op b)); \
     
     std::size_t VM::_gc_bytes() const {
         return sizeof(VM);
+    }
+    
+    void VM::_gc_debug() const {
+        printf("%p %s VM{...}\n", this, gc::ColorCString(color.load(std::memory_order::relaxed)));
     }
     
 }

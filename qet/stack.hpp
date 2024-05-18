@@ -33,25 +33,25 @@ namespace gc {
         void push(T value) {
             Node* desired = new Node;
             desired->value = std::move(value);
-            Node* expected = head.load(ACQUIRE);
+            Node* expected = head.load(std::memory_order::acquire);
             do {
-                desired->next.ptr.store(expected, RELAXED);
+                desired->next.ptr.store(expected, std::memory_order::relaxed);
             } while (!head.compare_exchange_strong(expected,
                                                    desired,
-                                                   RELEASE,
-                                                   ACQUIRE));
+                                                   std::memory_order::release,
+                                                   std::memory_order::acquire));
         }
         
         bool pop(T& value) {
-            Node* expected = head.load(ACQUIRE);
+            Node* expected = head.load(std::memory_order::acquire);
             for (;;) {
                 if (expected == nullptr)
                     return false;
-                Node* desired = expected->next.load(RELAXED);
+                Node* desired = expected->next.load(std::memory_order::relaxed);
                 if (head.compare_exchange_strong(expected,
                                                  desired,
-                                                 RELAXED,
-                                                 ACQUIRE)) {
+                                                 std::memory_order::relaxed,
+                                                 std::memory_order::acquire)) {
                     value = std::move(expected->value);
                     return true;
                 }

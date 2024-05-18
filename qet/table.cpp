@@ -76,7 +76,7 @@ namespace lox {
         // std::unique_lock lock{table->_mutex};
         if (table->count == 0) return false;
         
-        Entry* entry = findEntry(table->entries.ptr.load(std::memory_order_relaxed), key);
+        Entry* entry = findEntry(table->entries.inner.load(std::memory_order_relaxed), key);
         if (entry->key == nullptr) return false;
         
         *value = entry->value.load();
@@ -88,7 +88,7 @@ namespace lox {
         if (table->count == 0) return false;
         
         // Find the entry.
-        Entry* entry = findEntry(table->entries.ptr.load(std::memory_order_relaxed), key);
+        Entry* entry = findEntry(table->entries.inner.load(std::memory_order_relaxed), key);
         if (entry->key == nullptr) return false;
         
         // Place a tombstone in the entry.
@@ -105,7 +105,7 @@ namespace lox {
             new_entries->_data[i].value = Value();
         }
         table->count = 0;
-        gc::Array<Entry>* old_entries = table->entries.ptr.load(std::memory_order_relaxed);
+        gc::Array<Entry>* old_entries = table->entries.inner.load(std::memory_order_relaxed);
         if (old_entries) {
             for (int i = 0; i < old_entries->_capacity; i++) {
                 Entry* entry = &old_entries->_data[i];
@@ -126,11 +126,11 @@ namespace lox {
     
     bool tableSet(Table* table, ObjectString* key, Value value) {
         // std::unique_lock lock{table->_mutex};
-        gc::Array<Entry>* v = table->entries.ptr.load(std::memory_order_relaxed);
+        gc::Array<Entry>* v = table->entries.inner.load(std::memory_order_relaxed);
         if ((v == nullptr) || ((table->count + 1) > (v->_capacity * TABLE_MAX_LOAD))) {
             int new_capacity = GROW_CAPACITY(v ? (int) v->_capacity : 0);
             adjustCapacity(table, new_capacity);
-            v = table->entries.ptr.load(std::memory_order_relaxed);
+            v = table->entries.inner.load(std::memory_order_relaxed);
         }
         Entry* entry = findEntry(v, key);
         bool isNewKey = (entry->key == nullptr);
@@ -143,7 +143,7 @@ namespace lox {
     
     void tableAddAll(Table* from, Table* to) {
         // std::unique_lock lock{from->_mutex};
-        gc::Array<Entry>* from_v = from->entries.ptr.load(std::memory_order_relaxed);
+        gc::Array<Entry>* from_v = from->entries.inner.load(std::memory_order_relaxed);
         if (from_v) {
             for (int i = 0; i < from_v->_capacity; i++) {
                 Entry* entry = &from_v->_data[i];
@@ -217,7 +217,7 @@ namespace lox {
         // std::unique_lock lock{table->_mutex};
         printf("struct Table {\n");
         printf("    int count = %d;\n", table->count);
-        gc::Array<Entry>* v = table->entries.ptr.load(std::memory_order_acquire);
+        gc::Array<Entry>* v = table->entries.inner.load(std::memory_order_acquire);
         printf("    int capacity = %d;\n", (int) v->_capacity);
         printf("    Entry* entries = {\n");
         for (int i = 0; i < v->_capacity; i++) {
@@ -238,7 +238,7 @@ namespace lox {
     void printTable(Table* table) {
         // std::unique_lock lock{table->_mutex};
         printf("{\n");
-        gc::Array<Entry>* v = table->entries.ptr.load(std::memory_order_acquire);
+        gc::Array<Entry>* v = table->entries.inner.load(std::memory_order_acquire);
         for (int i = 0; i < v->_capacity; i++) {
             Entry* entry = &v->_data[i];
             if (entry->key) {
@@ -252,10 +252,8 @@ namespace lox {
     
     
     void Entry::scan(gc::ScanContext& context) const {
-        gc::LOG("Entry scan");
         context.push(key);
-        using lox::scan;
-        scan(value, context);
+        lox::scan(value, context);
     }
 
     
